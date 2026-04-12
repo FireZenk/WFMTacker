@@ -78,18 +78,24 @@
       if (!res.ok) return [];
       const json    = await res.json();
       const setData = json.data;
-      const partIds = (setData?.setParts ?? []).filter(id => id !== setData.id);
-      if (!partIds.length) return [];
+      const allPartIds = (setData?.setParts ?? []).filter(id => id !== setData.id);
+      if (!allPartIds.length) return [];
 
-      // 2. Resolver cada ID a { slug, name } en paralelo
-      const parts = await Promise.all(partIds.map(async id => {
+      // Count how many times each ID appears (e.g. 2× blade in a set)
+      const idCount = {};
+      allPartIds.forEach(id => { idCount[id] = (idCount[id] ?? 0) + 1; });
+      const uniqueIds = Object.keys(idCount);
+
+      // 2. Resolver cada ID único a { slug, name } en paralelo
+      const parts = await Promise.all(uniqueIds.map(async id => {
         try {
           const r = await fetch(`https://api.warframe.market/v2/itemId/${id}`, {
             headers: { 'Language': 'en', 'Platform': 'pc' }
           });
           if (!r.ok) return null;
           const j = await r.json();
-          return j.data ?? null;
+          const data = j.data ?? null;
+          return data ? { ...data, qty: idCount[id] } : null;
         } catch { return null; }
       }));
 
@@ -648,7 +654,7 @@
     const results = await Promise.all(
       parts.map(async p => ({
         name:   p.i18n?.en?.name ?? p.slug,
-        qty:    1,
+        qty:    p.qty ?? 1,
         price:  await fetchPartPrice(p.slug),
         ducats: p.ducats ?? 0,
       }))
