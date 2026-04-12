@@ -1,0 +1,20 @@
+# Claude
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Distribution
+*.zip
+*.crx
+*.pem
+
+# Logs
+*.log
