@@ -360,7 +360,7 @@
     if (hours48.length < 12) return null;
     const byHour = {};
     hours48.forEach(p => {
-      const h = new Date(p.datetime).getUTCHours();
+      const h = new Date(p.datetime).getHours();
       if (!byHour[h]) byHour[h] = [];
       byHour[h].push(p.avg_price ?? p.wa_price ?? 0);
     });
@@ -446,7 +446,7 @@
         ${bestHour ? `
           <div class="wfm-ph-insight wfm-ph-ins-hour">
             <span class="wfm-ph-ins-icon">🕐</span>
-            <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Coordinated Universal Time. To convert: UTC+1 = add 1h, UTC-5 = subtract 5h">UTC</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
+            <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
           </div>` : ''}
         ${ducatChipHTML}
         ${liquidity ? (() => {
