@@ -532,7 +532,7 @@
           <span class="wfm-ph-leg wfm-ph-leg-vol" data-tooltip="Daily trade volume: number of successfully closed orders">▮ Volume</span>
           <span class="wfm-ph-leg wfm-ph-leg-forecast" data-tooltip="7-day price forecast projected using linear regression on the last 30 days">╌ Forecast</span>
         </div>
-        <a class="wfm-ph-copyright" href="https://linktr.ee/optrx" target="_blank" rel="noopener">© ${new Date().getFullYear()} OptimusRex</a>
+        <a class="wfm-ph-copyright" href="https://linktr.ee/optrx" target="_blank" rel="noopener">© ${new Date().getFullYear()} OptimusRex · v${browser.runtime.getManifest().version}</a>
       </div>
     `;
 
