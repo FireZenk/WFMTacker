@@ -9,7 +9,7 @@
   "content_scripts": [
     {
       "matches": ["https://warframe.market/*"],
-      "js": ["content.js"],
+      "js": ["browser-polyfill.min.js", "content.js"],
       "css": ["style.css"],
       "run_at": "document_idle"
     }
@@ -22,6 +22,12 @@
   "host_permissions": [
     "https://api.warframe.market/*"
   ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wfm-price-history@firezenk.com",
+      "strict_min_version": "109.0"
+    }
+  },
   "icons": {
     "16":  "icon16.png",
     "48":  "icon48.png",

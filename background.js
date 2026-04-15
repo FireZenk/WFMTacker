@@ -3,17 +3,19 @@
    Comprueba precios de la watchlist y lanza notificaciones
    ============================================================ */
 
+importScripts('browser-polyfill.min.js');
+
 const API_BASE    = 'https://api.warframe.market/v1';
 const ALARM_NAME  = 'wfm-price-check';
 const CHECK_MINS  = 30;
 
 // ── Setup ────────────────────────────────────────────────────────────────────
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create(ALARM_NAME, { periodInMinutes: CHECK_MINS });
+browser.runtime.onInstalled.addListener(() => {
+  browser.alarms.create(ALARM_NAME, { periodInMinutes: CHECK_MINS });
 });
 
-chrome.alarms.onAlarm.addListener(alarm => {
+browser.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === ALARM_NAME) checkPrices();
 });
 
@@ -21,12 +23,12 @@ chrome.alarms.onAlarm.addListener(alarm => {
 
 function getWatchlist() {
   return new Promise(resolve =>
-    chrome.storage.local.get('watchlist', d => resolve(d.watchlist ?? {}))
+    browser.storage.local.get('watchlist', d => resolve(d.watchlist ?? {}))
   );
 }
 
 function saveWatchlist(watchlist) {
-  return new Promise(resolve => chrome.storage.local.set({ watchlist }, resolve));
+  return new Promise(resolve => browser.storage.local.set({ watchlist }, resolve));
 }
 
 // ── Price check ───────────────────────────────────────────────────────────────
@@ -74,7 +76,7 @@ async function checkPrices() {
 }
 
 function notify(slug, name, price, direction, threshold) {
-  chrome.notifications.create(`wfm-alert-${slug}-${Date.now()}`, {
+  browser.notifications.create(`wfm-alert-${slug}-${Date.now()}`, {
     type:    'basic',
     iconUrl: 'icon.png',
     title:   `WFM Price Alert — ${name}`,
@@ -86,7 +88,7 @@ function notify(slug, name, price, direction, threshold) {
 
 // ── Messages from content script ──────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'GET_WATCHLIST') {
     getWatchlist().then(sendResponse);
     return true;

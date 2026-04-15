@@ -14,7 +14,7 @@
   // ── Storage helpers ───────────────────────────────────────────────────────
 
   function sendMsg(msg) {
-    return new Promise(resolve => chrome.runtime.sendMessage(msg, resolve));
+    return new Promise(resolve => browser.runtime.sendMessage(msg, resolve));
   }
   const getWatchlist  = ()       => sendMsg({ type: 'GET_WATCHLIST' });
   const saveWatchlist = list     => sendMsg({ type: 'SAVE_WATCHLIST', watchlist: list });
