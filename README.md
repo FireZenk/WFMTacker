@@ -26,7 +26,8 @@ A Chrome extension that embeds price history charts and trade insights directly 
 ## Installation
 
 ### From Chrome Web Store
-*(Coming soon)*
+
+Install directly from the [Chrome Web Store](https://chromewebstore.google.com/detail/wfm-price-history/aejobloolfcoipjfbhflgnamhlnmhnlb).
 
 ### Manual (developer mode)
 1. Clone or download this repository
