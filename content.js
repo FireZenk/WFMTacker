@@ -52,6 +52,10 @@
     return slug.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
+  function esc(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   function fmt(n) {
     return n != null ? `${Math.round(n)}p` : '—';
   }
@@ -645,10 +649,19 @@
         const val = btn.dataset.copy;
         if (!val || val === '0') return;
         navigator.clipboard.writeText(val).then(() => {
-          const orig = btn.innerHTML;
-          btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,8 6,12 14,4"/></svg> copied!';
+          const origNodes = [...btn.childNodes];
+          const NS  = 'http://www.w3.org/2000/svg';
+          const svg = document.createElementNS(NS, 'svg');
+          svg.setAttribute('viewBox', '0 0 16 16');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', 'currentColor');
+          svg.setAttribute('stroke-width', '1.5');
+          const poly = document.createElementNS(NS, 'polyline');
+          poly.setAttribute('points', '2,8 6,12 14,4');
+          svg.appendChild(poly);
+          btn.replaceChildren(svg, ' copied!');
           btn.classList.add('wfm-ph-copy-ok');
-          setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('wfm-ph-copy-ok'); }, 1500);
+          setTimeout(() => { btn.replaceChildren(...origNodes); btn.classList.remove('wfm-ph-copy-ok'); }, 1500);
         });
       });
     });
@@ -771,7 +784,7 @@
 
     const rows = results.map(p => `
       <div class="wfm-ph-arb-row">
-        <span class="wfm-ph-arb-name">${p.name}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</span>
+        <span class="wfm-ph-arb-name">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</span>
         <span class="wfm-ph-arb-ducats">${p.ducats ? `${DUCAT_SVG}${p.ducats}` : ''}</span>
         <span class="wfm-ph-arb-price">${p.price ? `${p.price * p.qty}p` : '—'}</span>
       </div>`).join('');
@@ -819,7 +832,7 @@
 
           return `
             <div class="wfm-wl-row" data-slug="${slug}">
-              <a class="wfm-wl-name" href="/items/${slug}" target="_blank">${item.name}</a>
+              <a class="wfm-wl-name" href="/items/${slug}" target="_blank">${esc(item.name)}</a>
               <div class="wfm-wl-prices">
                 <span class="wfm-wl-price">${item.lastPrice}p</span>
                 ${diffStr}
