@@ -39,6 +39,7 @@
   </svg>`;
 
   let currentSlug = null;
+  let vaultData   = null;
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,87 @@
 
   function fmt(n) {
     return n != null ? `${Math.round(n)}p` : '—';
+  }
+
+  // ── Vault status ──────────────────────────────────────────────────────────────
+
+  async function loadVaultData() {
+    if (vaultData) return vaultData;
+    try {
+      const res = await fetch(browser.runtime.getURL('vault-data.json'));
+      vaultData = await res.json();
+    } catch (e) {
+      vaultData = {};
+    }
+    return vaultData;
+  }
+
+  function calcVaultStatus(slug, data) {
+    if (!slug.includes('prime') || !data) return null;
+
+    // Normalize to set slug
+    const PART_SUFFIXES = [
+      '_neuroptics', '_systems', '_chassis', '_blueprint',
+      '_barrel', '_receiver', '_stock', '_blade', '_handle',
+      '_guard', '_grip', '_string', '_lower_limb', '_upper_limb',
+      '_boot', '_carapace', '_cerebrum', '_link_neuroptics',
+      '_link_systems', '_link_chassis', '_ornament',
+    ];
+    let setSlug = slug.endsWith('_set') ? slug : null;
+    if (!setSlug) {
+      for (const suf of PART_SUFFIXES) {
+        if (slug.endsWith(suf)) { setSlug = slug.slice(0, -suf.length) + '_set'; break; }
+      }
+      if (!setSlug) setSlug = slug + '_set';
+    }
+
+    const entry = data[setSlug];
+    if (!entry) return null;
+
+    const now    = Date.now();
+    const events = entry.events || [];
+    const last   = events[events.length - 1];
+
+    // Currently active in Prime Resurgence?
+    if (last) {
+      const start = new Date(last.start).getTime();
+      const end   = new Date(last.end).getTime();
+      if (now >= start && now <= end) {
+        return {
+          cls: 'wfm-ph-ins-buy',
+          icon: '🔓',
+          label: 'Prime Resurgence active',
+          sub: '— available now via Varzia',
+          tooltip: 'This prime is currently available through Prime Resurgence. Grab relics before the rotation ends!',
+        };
+      }
+    }
+
+    const refDate   = last ? new Date(last.end) : new Date(entry.vaulted);
+    const monthsAgo = Math.round((now - refDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+    const timeLabel = monthsAgo < 1  ? 'this month'
+      : monthsAgo === 1              ? '1 month ago'
+      : monthsAgo < 12              ? `${monthsAgo} months ago`
+      : monthsAgo < 24              ? '~1 year ago'
+      : `~${Math.round(monthsAgo / 12)} years ago`;
+
+    const isOld    = monthsAgo >= 6;
+    const hasEvent = !!last;
+    const endFmt   = hasEvent
+      ? new Date(last.end).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : null;
+
+    return {
+      cls:     isOld ? 'wfm-ph-ins-sell' : 'wfm-ph-ins-neutral',
+      icon:    '🔒',
+      label:   hasEvent ? `Last seen ${timeLabel}` : `Vaulted ${timeLabel}`,
+      sub:     isOld
+        ? '— selling sooner may be worth considering'
+        : '— vaulted recently',
+      tooltip: hasEvent
+        ? `Last available in Prime Resurgence: ${endFmt}. Items absent 6+ months tend to stay vaulted for a while — price pressure may increase over time.`
+        : `Entered the Prime Vault and has not appeared in Prime Resurgence yet.`,
+    };
   }
 
   // ── API ──────────────────────────────────────────────────────────────────────
@@ -426,6 +508,13 @@
         </div>`;
     })() : '';
 
+    const vaultStatus    = calcVaultStatus(slug, vaultData);
+    const vaultChipHTML  = vaultStatus ? `
+        <div class="wfm-ph-insight ${vaultStatus.cls}">
+          <span class="wfm-ph-ins-icon">${vaultStatus.icon}</span>
+          <span><b>${vaultStatus.label}</b> <span class="wfm-ph-ins-dim" data-tooltip="${vaultStatus.tooltip}">${vaultStatus.sub}</span></span>
+        </div>` : '';
+
     const volLabels  = ['🟢 Stable', '🟡 Moderate', '🔴 Volatile'];
     const volClasses = ['wfm-ph-ins-stable', 'wfm-ph-ins-moderate', 'wfm-ph-ins-volatile'];
     const sigIcons   = { buy: '🟢', sell: '🔴', neutral: '🔵' };
@@ -449,6 +538,7 @@
             <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
           </div>` : ''}
         ${ducatChipHTML}
+        ${vaultChipHTML}
         ${liquidity ? (() => {
           const dots = Array.from({ length: 10 }, (_, i) =>
             `<span class="wfm-ph-liq-dot${i < liquidity.score ? ' wfm-ph-liq-dot-on' : ''}" style="${i < liquidity.score ? `background:var(--wfm-liq-${liquidity.label.toLowerCase()})` : ''}"></span>`
@@ -808,6 +898,7 @@
       fetchStats(slug).catch(() => null),
       waitForAnchor(),
       slug.includes('prime') ? fetchItemV2(slug) : Promise.resolve(null),
+      loadVaultData(),
     ]);
 
     if (getItemSlug() !== slug) return;
