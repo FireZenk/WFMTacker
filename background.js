@@ -3,7 +3,8 @@
    Comprueba precios de la watchlist y lanza notificaciones
    ============================================================ */
 
-importScripts('browser-polyfill.min.js');
+// Chrome service worker needs importScripts; Firefox loads the polyfill via manifest scripts[]
+if (typeof importScripts !== 'undefined') importScripts('browser-polyfill.min.js');
 
 const API_BASE    = 'https://api.warframe.market/v1';
 const ALARM_NAME  = 'wfm-price-check';
