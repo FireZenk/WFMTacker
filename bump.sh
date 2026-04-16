@@ -27,11 +27,20 @@ esac
 NEW="$MAJOR.$MINOR.$PATCH"
 
 jq ".version = \"$NEW\"" manifest.json > manifest.tmp.json && mv manifest.tmp.json manifest.json
-
 echo "Bumped $CURRENT → $NEW"
 
 git add manifest.json
-git commit -m "chore: bump version to $NEW"
+
+# Update CHANGELOG.md if git-cliff is available
+if command -v git-cliff &>/dev/null; then
+  git-cliff --tag "v$NEW" -o CHANGELOG.md
+  git add CHANGELOG.md
+  echo "CHANGELOG.md updated"
+else
+  echo "git-cliff not found — skipping CHANGELOG.md (brew install git-cliff)"
+fi
+
+git commit -m "chore(release): v$NEW"
 git tag "v$NEW"
 
 echo ""

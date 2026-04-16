@@ -13,10 +13,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # needed by git-cliff to read full commit history
 
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v3
+        id: cliff
+        with:
+          args: --latest --strip header
+        env:
+          OUTPUT: release-notes.txt
 
       - name: Build Chrome ZIP
         run: |
@@ -44,7 +54,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ steps.version.outputs.VERSION }}
-          generate_release_notes: true
+          body: ${{ steps.cliff.outputs.content }}
           files: |
             wfm-price-history-chrome-${{ steps.version.outputs.VERSION }}.zip
             wfm-price-history-firefox-${{ steps.version.outputs.VERSION }}.zip
