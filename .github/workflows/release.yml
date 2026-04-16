@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Chrome ZIP
+        run: |
+          mkdir -p dist/chrome
+          cp background.js content.js style.css browser-polyfill.min.js \
+             icon.png icon48.png icon16.png dist/chrome/
+          jq 'del(.browser_specific_settings, .data_collection_permissions)
+              | .background = {"service_worker": .background.service_worker}
+              | .version = "${{ steps.version.outputs.VERSION }}"' \
+            manifest.json > dist/chrome/manifest.json
+          cd dist/chrome
+          zip -r ../../wfm-price-history-chrome-${{ steps.version.outputs.VERSION }}.zip .
+
+      - name: Build Firefox ZIP
+        run: |
+          mkdir -p dist/firefox
+          cp background.js content.js style.css browser-polyfill.min.js \
+             icon.png icon48.png icon16.png dist/firefox/
+          jq '.version = "${{ steps.version.outputs.VERSION }}"' \
+            manifest.json > dist/firefox/manifest.json
+          cd dist/firefox
+          zip -r ../../wfm-price-history-firefox-${{ steps.version.outputs.VERSION }}.zip .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+          files: |
+            wfm-price-history-chrome-${{ steps.version.outputs.VERSION }}.zip
+            wfm-price-history-firefox-${{ steps.version.outputs.VERSION }}.zip
