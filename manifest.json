@@ -29,6 +29,10 @@
       "matches": ["https://warframe.market/*"]
     }
   ],
+  "data_collection_permissions": {
+    "required": [],
+    "optional": []
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "wfm-price-history@firezenk.com",
