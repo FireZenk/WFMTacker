@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WFM Price History",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Embeds price history charts, forecasts, liquidity scores and trade alerts directly into every warframe.market item page.",
   "background": {
     "service_worker": "background.js",
