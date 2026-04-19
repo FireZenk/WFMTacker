@@ -3,7 +3,7 @@
 A browser extension that embeds price history charts and trade insights directly into every [warframe.market](https://warframe.market) item page — no popups, no tab switching.
 
 ![Chrome Web Store](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)
-![Firefox Add-ons](https://img.shields.io/badge/Firefox-Add--on-FF7139?logo=firefox&logoColor=white)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox-Add--on-FF7139?logo=firefox&logoColor=white)](https://addons.mozilla.org/addon/wfm-price-history/)
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-green)
 
 ---
@@ -39,7 +39,9 @@ Or manually:
 
 ### Firefox
 
-Coming soon to Firefox Add-ons. In the meantime, load it temporarily:
+Install directly from [Firefox Add-ons](https://addons.mozilla.org/addon/wfm-price-history/).
+
+Or manually:
 1. Open `about:debugging#/runtime/this-firefox`
 2. Click **Load Temporary Add-on** and select `manifest.json`
 
