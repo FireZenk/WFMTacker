@@ -203,6 +203,24 @@
     } catch { return null; }
   }
 
+  async function fetchSpread(slug) {
+    try {
+      const res = await fetch(`${API_BASE}/items/${slug}/orders`, {
+        headers: { 'Language': 'en', 'Platform': 'pc' }
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      const orders = json.payload.orders ?? [];
+      const online = orders.filter(o => o.user.status === 'ingame' || o.user.status === 'online');
+      const sells = online.filter(o => o.order_type === 'sell').map(o => o.platinum);
+      const buys  = online.filter(o => o.order_type === 'buy').map(o => o.platinum);
+      if (!sells.length || !buys.length) return null;
+      const minSell = Math.min(...sells);
+      const maxBuy  = Math.max(...buys);
+      return { minSell, maxBuy, spread: minSell - maxBuy };
+    } catch { return null; }
+  }
+
   async function fetchPartPrice(slug) {
     try {
       const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
@@ -458,12 +476,12 @@
     const best  = avgs.reduce((a, b) => a.avg < b.avg ? a : b);
     const worst = avgs.reduce((a, b) => a.avg > b.avg ? a : b);
     const diff  = Math.round(worst.avg - best.avg);
-    return { hour: best.hour, diff };
+    return { hour: best.hour, sellHour: worst.hour, diff };
   }
 
   // ── Widget ───────────────────────────────────────────────────────────────────
 
-  function buildWidget(slug, statsData, v2Data = null) {
+  function buildWidget(slug, statsData, v2Data = null, spreadData = null) {
     const days90  = (statsData.closed['90days']  || []).slice(-90);
     const hours48 = (statsData.closed['48hours'] || []).slice(-48);
 
@@ -499,10 +517,10 @@
     const platPrice = Math.round(last.wa_price ?? last.avg_price ?? 0);
     const ducatChipHTML = (isPrime && ducats > 0 && platPrice > 0) ? (() => {
       const ratio = (platPrice / ducats).toFixed(1);
-      const cls   = ratio >= 3 ? 'wfm-ph-ins-buy' : ratio >= 2 ? 'wfm-ph-ins-neutral' : 'wfm-ph-ins-moderate';
-      const tip   = ratio >= 3
+      const cls   = ratio >= 8 ? 'wfm-ph-ins-buy' : ratio >= 5 ? 'wfm-ph-ins-neutral' : 'wfm-ph-ins-moderate';
+      const tip   = ratio >= 8
         ? `Selling for plat is much better`
-        : ratio >= 2
+        : ratio >= 5
         ? `Plat and ducats are roughly equivalent`
         : `Ducats may be worth considering`;
       return `
@@ -540,8 +558,20 @@
           <div class="wfm-ph-insight wfm-ph-ins-hour">
             <span class="wfm-ph-ins-icon">🕐</span>
             <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
+          </div>
+          <div class="wfm-ph-insight wfm-ph-ins-sell">
+            <span class="wfm-ph-ins-icon">💰</span>
+            <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
           </div>` : ''}
         ${ducatChipHTML}
+        ${spreadData ? (() => {
+          const spreadCls = spreadData.spread < 0 ? 'wfm-ph-ins-volatile' : spreadData.spread <= 5 ? 'wfm-ph-ins-buy' : 'wfm-ph-ins-moderate';
+          return `
+          <div class="wfm-ph-insight ${spreadCls}">
+            <span class="wfm-ph-ins-icon">↔</span>
+            <span><b>Spread: ${spreadData.spread}p</b> <span class="wfm-ph-ins-dim" data-tooltip="Gap between lowest online sell order and highest online buy order. Tight spread = liquid market. Negative = buy orders exceed sell price.">sell ${spreadData.minSell}p / buy ${spreadData.maxBuy}p</span></span>
+          </div>`;
+        })() : ''}
         ${vaultChipHTML}
         ${liquidity ? (() => {
           const dots = Array.from({ length: 10 }, (_, i) =>
@@ -551,7 +581,7 @@
           <div class="wfm-ph-insight ${liquidity.cls}">
             <span class="wfm-ph-ins-icon">💧</span>
             <span>
-              <b data-tooltip="Liquidity score: how easy it is to trade this item. Based on average daily volume and how many of the last ${liquidity.totalDays} days had at least one trade.">${liquidity.label} liquidity</b>
+              <b data-tooltip="Liquidity score (1 = very hard to sell, 10 = trades daily). Based on average daily volume and activity over the last ${liquidity.totalDays} days.">${liquidity.label} liquidity</b>
               <span class="wfm-ph-liq-bar">${dots}</span>
               <span class="wfm-ph-ins-dim">${liquidity.score}/10 · ~${liquidity.avgVol} trades/day · active ${liquidity.activeDays}/${liquidity.totalDays} days</span>
             </span>
@@ -907,18 +937,19 @@
   async function injectWidget(slug) {
     document.getElementById(WIDGET_ID)?.remove();
 
-    const [statsData, anchorEl, v2Data] = await Promise.all([
+    const [statsData, anchorEl, v2Data, , spreadData] = await Promise.all([
       fetchStats(slug).catch(() => null),
       waitForAnchor(),
       slug.includes('prime') ? fetchItemV2(slug) : Promise.resolve(null),
       loadVaultData(),
+      fetchSpread(slug).catch(() => null),
     ]);
 
     if (getItemSlug() !== slug) return;
     if (!statsData || !anchorEl) return;
     if (document.getElementById(WIDGET_ID)) return;
 
-    const widget = buildWidget(slug, statsData, v2Data);
+    const widget = buildWidget(slug, statsData, v2Data, spreadData);
     if (!widget) return;
 
     if (anchorEl.id === 'wfm-itempage-zone-lg') {
