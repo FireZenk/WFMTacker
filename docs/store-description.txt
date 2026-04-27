@@ -1,0 +1,29 @@
+WFM Price History enhances warframe.market by embedding a full price analysis widget directly into each item page — no popups, no tab switching.
+
+FEATURES
+
+📈 Price history chart — 90-day and 48-hour SVG chart with min/max band and daily volume bars
+
+🔮 7-day forecast — linear regression projection with confidence interval
+
+🟢 Buy / Sell signal — current price vs 90-day average with percentage deviation
+
+📊 Volatility score — Stable / Moderate / Volatile rating based on Coefficient of Variation
+
+💧 Liquidity score — 1–10 rating based on average daily volume and trading consistency (1 = very hard to sell, 10 = trades daily)
+
+🕐 Best hour to buy — cheapest hour derived from 48h data (local time)
+
+💰 Best hour to sell — peak price hour derived from 48h data (local time)
+
+↔️ Bid-ask spread — gap between the lowest active sell order and highest active buy order among online traders
+
+📋 Copy to clipboard — one-click copy of average or median price for trade chat
+
+⚖️ Set vs Parts arbitrage — compares set price against buying parts individually (Prime sets)
+
+🪙 Ducat comparison — platinum-per-ducat ratio to decide whether to sell or trade for ducats (Prime items)
+
+⭐ Watchlist & Price Alerts — star any item, set price thresholds, get desktop notifications when prices cross them
+
+All data comes from the official warframe.market public API. No personal data is collected or stored externally.

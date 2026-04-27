@@ -14,8 +14,10 @@ A browser extension that embeds price history charts and trade insights directly
 - **7-day forecast** — linear regression projection with confidence band
 - **Buy / Sell signal** — based on current price vs 90-day average
 - **Volatility score** — Coefficient of Variation (CV%) with Stable / Moderate / Volatile label
-- **Liquidity score** — 1–10 rating based on average daily volume and trading consistency
-- **Best hour to buy** — cheapest UTC hour derived from 48h data
+- **Liquidity score** — 1–10 rating based on average daily volume and trading consistency (1 = very hard to sell, 10 = trades daily)
+- **Best hour to buy** — cheapest hour derived from 48h data (local time)
+- **Best hour to sell** — peak price hour derived from 48h data (local time)
+- **Bid-ask spread** — gap between lowest active sell order and highest active buy order among online traders
 - **Copy to clipboard** — one-click copy of average or median price
 - **Set vs Parts arbitrage** — shows whether buying parts separately is cheaper than the set (Prime sets only)
 - **Ducat comparison** — platinum-per-ducat ratio to help decide whether to sell for plat or trade for ducats (Prime items only)
