@@ -4,8 +4,7 @@
   "version": "1.2.0",
   "description": "Embeds price history charts, forecasts, liquidity scores and trade alerts directly into every warframe.market item page.",
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["browser-polyfill.min.js", "background.js"]
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
