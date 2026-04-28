@@ -58,3 +58,22 @@ jobs:
           files: |
             wfm-price-history-chrome-${{ steps.version.outputs.VERSION }}.zip
             wfm-price-history-firefox-${{ steps.version.outputs.VERSION }}.zip
+
+      - name: Post to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          NOTES: ${{ steps.cliff.outputs.content }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+          BODY=$(printf '%s' "$NOTES" | head -c 3800 | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+          curl -sSf -X POST "$DISCORD_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"WFM Price History v${VERSION} released\",
+                \"description\": ${BODY},
+                \"color\": 15548997,
+                \"url\": \"https://github.com/${{ github.repository }}/releases/tag/v${VERSION}\"
+              }]
+            }"
