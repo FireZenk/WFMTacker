@@ -14,16 +14,14 @@
   // ── Storage helpers ───────────────────────────────────────────────────────
 
   function sendMsg(msg) {
-    return new Promise((resolve, reject) => {
-      try {
-        browser.runtime.sendMessage(msg, resolve);
-      } catch (e) {
-        if (e?.message?.includes('Extension context invalidated')) {
-          location.reload();
-        }
-        reject(e);
+    try {
+      return browser.runtime.sendMessage(msg);
+    } catch (e) {
+      if (e?.message?.includes('Extension context invalidated')) {
+        location.reload();
       }
-    });
+      return Promise.reject(e);
+    }
   }
   const getWatchlist  = ()       => sendMsg({ type: 'GET_WATCHLIST' });
   const saveWatchlist = list     => sendMsg({ type: 'SAVE_WATCHLIST', watchlist: list });
