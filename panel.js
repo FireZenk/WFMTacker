@@ -20,7 +20,6 @@ function saveWatchlist(list) {
 
 let currentSlug  = null;
 let currentRange = '90days';
-let currentRank  = null;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -63,10 +62,9 @@ function setupSearch() {
 
 // ── Load item ─────────────────────────────────────────────────────────────────
 
-async function loadItem(slug, preserveRank = false) {
+async function loadItem(slug) {
   currentSlug  = slug;
   currentRange = '90days';
-  if (!preserveRank) currentRank = null;
 
   const url = new URL(location.href);
   url.searchParams.set('item', slug);
@@ -82,7 +80,7 @@ async function loadItem(slug, preserveRank = false) {
 
   try {
     const [statsData, v2Data, spreadData, vaultData] = await Promise.all([
-      fetchStats(slug, currentRank),
+      fetchStats(slug),
       fetchItemV2(slug).catch(() => null),
       fetchSpread(slug).catch(() => null),
       loadVaultData(),
@@ -110,7 +108,6 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
   }
 
   let curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
-  const rankInfo  = getRankInfo(v2Data);
 
   const last    = activeSet[activeSet.length - 1] || {};
   const trend   = activeSet.length >= 8
@@ -179,13 +176,6 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
     });
   }
 
-  const rankBtns = rankInfo ? `
-    <span class="wfm-panel-rank-sep"></span>
-    <button class="wfm-panel-rank-btn ${currentRank === null ? 'active' : ''}" data-rank="">All</button>
-    <button class="wfm-panel-rank-btn ${currentRank === 0 ? 'active' : ''}" data-rank="0">Unranked</button>
-    <button class="wfm-panel-rank-btn ${currentRank === rankInfo.maxRank ? 'active' : ''}" data-rank="max">Max</button>
-  ` : '';
-
   const content = document.getElementById('wfm-panel-content');
   content.innerHTML = `
     <div class="wfm-panel-item-header">
@@ -208,7 +198,6 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
     <div class="wfm-panel-tabs">
       <button class="wfm-panel-tab active" data-range="90days">90 days</button>
       <button class="wfm-panel-tab" data-range="48hours">48 hours</button>
-      ${rankBtns}
     </div>
 
     <div class="wfm-panel-chart-wrap" id="wfm-panel-chart-area"></div>
@@ -237,32 +226,6 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
       drawChart(pts, fd);
     });
   });
-
-  if (rankInfo) {
-    content.querySelectorAll('.wfm-panel-rank-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const rawRank = btn.dataset.rank;
-        const newRank = rawRank === '' ? null : rawRank === 'max' ? rankInfo.maxRank : Number(rawRank);
-        if (currentRank === newRank) return;
-        currentRank = newRank;
-        content.querySelectorAll('.wfm-panel-rank-btn').forEach(b => b.classList.toggle('active', b === btn));
-
-        const newStats = await fetchStats(slug, newRank).catch(() => null);
-        if (!newStats) return;
-
-        curDays90   = (newStats.closed['90days']  || []).slice(-90);
-        curHours48  = (newStats.closed['48hours'] || []).slice(-48);
-        curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
-
-        content.querySelector('#wfm-panel-stats-row').innerHTML    = buildPanelStatsInner(curDays90, curHours48, curForecast);
-        content.querySelector('#wfm-panel-insights-zone').innerHTML = buildPanelInsights(curDays90, curHours48);
-
-        const pts = currentRange === '90days' ? curDays90 : curHours48;
-        const fd  = currentRange === '90days' ? curForecast : null;
-        drawChart(pts, fd);
-      });
-    });
-  }
 
   content.querySelector('#wfm-panel-watch-btn').addEventListener('click', async () => {
     await toggleWatch(slug, itemName, platPrice);

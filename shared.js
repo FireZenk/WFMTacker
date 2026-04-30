@@ -43,12 +43,6 @@ async function fetchStats(slug, modRank = null) {
   return { closed: json.payload.statistics_closed };
 }
 
-function getRankInfo(v2Data) {
-  if (!v2Data?.tags) return null;
-  const tags = v2Data.tags;
-  if (!tags.includes('mod') && !tags.includes('arcane')) return null;
-  return { maxRank: v2Data.modMaxRank ?? 5 };
-}
 
 async function fetchItemV2(slug) {
   try {

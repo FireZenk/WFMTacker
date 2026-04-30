@@ -492,42 +492,6 @@ html, body {
   border-color: var(--wfm-border);
 }
 
-/* ── Rank toggle ──────────────────────────────────────────── */
-
-.wfm-panel-rank-sep {
-  display: inline-block;
-  width: 1px;
-  height: 16px;
-  background: var(--wfm-border);
-  margin: 0 8px;
-  vertical-align: middle;
-  align-self: center;
-}
-
-.wfm-panel-rank-btn {
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--wfm-text-muted);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-}
-
-.wfm-panel-rank-btn:hover {
-  color: var(--wfm-text);
-  border-color: var(--wfm-border);
-}
-
-.wfm-panel-rank-btn.active {
-  color: var(--wfm-teal);
-  border-color: var(--wfm-teal);
-  background: rgba(94, 200, 208, 0.08);
-}
-
 /* ── Chart area ───────────────────────────────────────────── */
 
 .wfm-panel-chart-wrap {

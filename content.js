@@ -141,13 +141,6 @@
     };
   }
 
-  function getRankInfo(v2Data) {
-    if (!v2Data?.tags) return null;
-    const tags = v2Data.tags;
-    if (!tags.includes('mod') && !tags.includes('arcane')) return null;
-    return { maxRank: v2Data.modMaxRank ?? 5 };
-  }
-
   // ── API ──────────────────────────────────────────────────────────────────────
 
   async function fetchStats(slug, modRank = null) {
@@ -498,9 +491,8 @@
     if (!activeSet.length) return null;
 
     let curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
-    const rankInfo  = getRankInfo(v2Data);
 
-    // Trend uses initial all-rank data — static, doesn't change with rank toggle
+    // Trend uses initial data
     const last = activeSet[activeSet.length - 1] || {};
     const trend = activeSet.length >= 8
       ? (activeSet[activeSet.length - 1].avg_price ?? 0) - (activeSet[activeSet.length - 8].avg_price ?? 0)
@@ -678,12 +670,6 @@
         <div class="wfm-ph-tabs" role="tablist">
           <button class="wfm-ph-tab active" data-range="90days"  role="tab">90 days</button>
           <button class="wfm-ph-tab"         data-range="48hours" role="tab">48 hours</button>
-          ${rankInfo ? `
-            <span class="wfm-ph-rank-sep"></span>
-            <button class="wfm-ph-rank-btn active" data-rank="">All</button>
-            <button class="wfm-ph-rank-btn"        data-rank="0">Unranked</button>
-            <button class="wfm-ph-rank-btn"        data-rank="max">Max</button>
-          ` : ''}
         </div>
       </div>
       <div id="wfm-ph-insights-zone">${insightsHTML}</div>
@@ -754,38 +740,6 @@
         renderChart(widget, pts, fd);
       });
     });
-
-    if (rankInfo) {
-      let currentRank = null;
-      widget.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const rawRank = btn.dataset.rank;
-          const newRank = rawRank === '' ? null : rawRank === 'max' ? rankInfo.maxRank : Number(rawRank);
-          if (currentRank === newRank) return;
-          currentRank = newRank;
-          widget.querySelectorAll('.wfm-ph-rank-btn').forEach(b => b.classList.toggle('active', b === btn));
-
-          const newStats = await fetchStats(slug, newRank).catch(() => null);
-          if (!newStats) return;
-
-          curDays90   = (newStats.closed['90days']  || []).slice(-90);
-          curHours48  = (newStats.closed['48hours'] || []).slice(-48);
-          curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
-
-          widget.querySelector('#wfm-ph-stats-row').innerHTML   = buildStatsRowInner(curDays90, curHours48, curForecast);
-          widget.querySelector('#wfm-ph-insights-zone').innerHTML = buildInsightsInner(curDays90, curHours48);
-
-          const newLast = (curDays90.length ? curDays90 : curHours48).at(-1) || {};
-          widget.querySelector('#wfm-ph-copy-avg')?.setAttribute('data-copy', Math.round(newLast.avg_price ?? newLast.wa_price ?? 0));
-          widget.querySelector('#wfm-ph-copy-median')?.setAttribute('data-copy', Math.round(newLast.median ?? 0));
-
-          const activeTab = widget.querySelector('.wfm-ph-tab.active');
-          const pts = activeTab?.dataset.range === '48hours' ? curHours48 : curDays90;
-          const fd  = activeTab?.dataset.range === '48hours' ? null : curForecast;
-          renderChart(widget, pts, fd);
-        });
-      });
-    }
 
     window.addEventListener('resize', () => {
       const activeTab = widget.querySelector('.wfm-ph-tab.active');
