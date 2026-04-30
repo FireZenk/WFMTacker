@@ -473,9 +473,24 @@
 
   // ── Widget ───────────────────────────────────────────────────────────────────
 
+  function splitByRank(days) {
+    if (!days.some(e => e.mod_rank != null)) return null;
+    return {
+      r0: days.filter(e => e.mod_rank === 0),
+      r5: days.filter(e => e.mod_rank === 5),
+    };
+  }
+
   function buildWidget(slug, statsData, v2Data = null) {
-    let curDays90  = (statsData.closed['90days']  || []).slice(-90);
-    let curHours48 = (statsData.closed['48hours'] || []).slice(-48);
+    const allDays90  = statsData.closed['90days']  || [];
+    const allHours48 = statsData.closed['48hours'] || [];
+    const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
+    const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
+    const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
+    let   curRank      = (rankSplit90?.r5?.length) ? 5 : 0;
+
+    let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
+    let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
 
     const activeSet = curDays90.length ? curDays90 : curHours48;
     if (!activeSet.length) return null;
@@ -652,6 +667,11 @@
         <div class="wfm-ph-tabs" role="tablist">
           <button class="wfm-ph-tab active" data-range="90days"  role="tab">90 days</button>
           <button class="wfm-ph-tab"         data-range="48hours" role="tab">48 hours</button>
+          ${isArcane ? `
+          <div class="wfm-ph-rank-toggle">
+            <button class="wfm-ph-rank-btn${curRank === 0 ? ' active' : ''}" data-rank="0">Unranked</button>
+            <button class="wfm-ph-rank-btn${curRank === 5 ? ' active' : ''}" data-rank="5">R5 Maxed ★</button>
+          </div>` : ''}
         </div>
       </div>
       <div id="wfm-ph-insights-zone">${insightsHTML}</div>
@@ -722,6 +742,32 @@
         renderChart(widget, pts, fd);
       });
     });
+
+    if (isArcane) {
+      widget.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          curRank = +btn.dataset.rank;
+          widget.querySelectorAll('.wfm-ph-rank-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          curDays90   = (rankSplit90[`r${curRank}`] || []).slice(-90);
+          curHours48  = (rankSplit48?.[`r${curRank}`] || []).slice(-48);
+          curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
+
+          widget.querySelector('#wfm-ph-stats-row').innerHTML    = buildStatsRowInner(curDays90, curHours48, curForecast);
+          widget.querySelector('#wfm-ph-insights-zone').innerHTML = buildInsightsInner(curDays90, curHours48);
+
+          const newLast = (curDays90.length ? curDays90 : curHours48).at(-1) || {};
+          widget.querySelector('#wfm-ph-copy-avg')?.setAttribute('data-copy',    Math.round(newLast.avg_price ?? newLast.wa_price ?? 0));
+          widget.querySelector('#wfm-ph-copy-median')?.setAttribute('data-copy', Math.round(newLast.median ?? 0));
+
+          const activeTab = widget.querySelector('.wfm-ph-tab.active');
+          const pts = activeTab?.dataset.range === '48hours' ? curHours48 : curDays90;
+          const fd  = activeTab?.dataset.range === '48hours' ? null : curForecast;
+          renderChart(widget, pts, fd);
+        });
+      });
+    }
 
     window.addEventListener('resize', () => {
       const activeTab = widget.querySelector('.wfm-ph-tab.active');

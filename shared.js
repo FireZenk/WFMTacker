@@ -31,6 +31,16 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
+// ── Rank split ────────────────────────────────────────────────────────────────
+
+function splitByRank(days) {
+  if (!days.some(e => e.mod_rank != null)) return null;
+  return {
+    r0: days.filter(e => e.mod_rank === 0),
+    r5: days.filter(e => e.mod_rank === 5),
+  };
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 async function fetchStats(slug) {

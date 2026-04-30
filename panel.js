@@ -96,8 +96,15 @@ async function loadItem(slug) {
 // ── Render item ───────────────────────────────────────────────────────────────
 
 async function renderItem(slug, statsData, v2Data, vaultData) {
-  let curDays90  = (statsData.closed['90days']  || []).slice(-90);
-  let curHours48 = (statsData.closed['48hours'] || []).slice(-48);
+  const allDays90  = statsData.closed['90days']  || [];
+  const allHours48 = statsData.closed['48hours'] || [];
+  const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
+  const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
+  const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
+  let   curRank      = (rankSplit90?.r5?.length) ? 5 : 0;
+
+  let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
+  let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
 
   const activeSet = curDays90.length ? curDays90 : curHours48;
   if (!activeSet.length) {
@@ -196,6 +203,11 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
     <div class="wfm-panel-tabs">
       <button class="wfm-panel-tab active" data-range="90days">90 days</button>
       <button class="wfm-panel-tab" data-range="48hours">48 hours</button>
+      ${isArcane ? `
+      <div class="wfm-ph-rank-toggle">
+        <button class="wfm-ph-rank-btn${curRank === 0 ? ' active' : ''}" data-rank="0">Unranked</button>
+        <button class="wfm-ph-rank-btn${curRank === 5 ? ' active' : ''}" data-rank="5">R5 Maxed ★</button>
+      </div>` : ''}
     </div>
 
     <div class="wfm-panel-chart-wrap" id="wfm-panel-chart-area"></div>
@@ -224,6 +236,27 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
       drawChart(pts, fd);
     });
   });
+
+  if (isArcane) {
+    content.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        curRank = +btn.dataset.rank;
+        content.querySelectorAll('.wfm-ph-rank-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        curDays90   = (rankSplit90[`r${curRank}`] || []).slice(-90);
+        curHours48  = (rankSplit48?.[`r${curRank}`] || []).slice(-48);
+        curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
+
+        document.getElementById('wfm-panel-stats-row').innerHTML    = buildPanelStatsInner(curDays90, curHours48, curForecast);
+        document.getElementById('wfm-panel-insights-zone').innerHTML = buildPanelInsights(curDays90, curHours48);
+
+        const pts = currentRange === '90days' ? curDays90 : curHours48;
+        const fd  = currentRange === '90days' ? curForecast : null;
+        drawChart(pts, fd);
+      });
+    });
+  }
 
   content.querySelector('#wfm-panel-watch-btn').addEventListener('click', async () => {
     await toggleWatch(slug, itemName, platPrice);

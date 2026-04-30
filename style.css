@@ -182,6 +182,39 @@
   border-bottom-color: var(--wfm-teal);
 }
 
+/* ── Rank toggle ─────────────────────────────────────────── */
+
+.wfm-ph-rank-toggle {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.wfm-ph-rank-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 7px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.wfm-ph-rank-btn:hover {
+  border-color: var(--wfm-teal);
+  color: var(--wfm-teal);
+}
+
+.wfm-ph-rank-btn.active {
+  background: rgba(94,200,208,0.15);
+  border-color: var(--wfm-teal);
+  color: var(--wfm-teal);
+  font-weight: 600;
+}
+
 /* ── Insights ────────────────────────────────────────────── */
 
 .wfm-ph-insights {
