@@ -82,7 +82,7 @@ async function loadItem(slug) {
     const [statsData, v2Data, spreadData, vaultData] = await Promise.all([
       fetchStats(slug),
       fetchItemV2(slug).catch(() => null),
-      fetchSpread(slug).catch(() => null),
+      fetchSpreadData(slug).catch(() => null),
       loadVaultData(),
     ]);
 

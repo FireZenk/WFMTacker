@@ -55,7 +55,7 @@ async function fetchItemV2(slug) {
   } catch { return null; }
 }
 
-async function fetchSpread(slug) {
+async function fetchSpreadData(slug) {
   try {
     const res = await fetch(`${API_BASE}/items/${slug}/orders`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
@@ -64,12 +64,47 @@ async function fetchSpread(slug) {
     const json = await res.json();
     const orders = json.payload.orders ?? [];
     const online = orders.filter(o => o.user.status === 'ingame' || o.user.status === 'online');
-    const sells = online.filter(o => o.order_type === 'sell').map(o => o.platinum);
-    const buys  = online.filter(o => o.order_type === 'buy').map(o => o.platinum);
-    if (!sells.length || !buys.length) return null;
-    const minSell = Math.min(...sells);
-    const maxBuy  = Math.max(...buys);
-    return { minSell, maxBuy, spread: minSell - maxBuy };
+    if (!online.length) return null;
+
+    const hasRanks = online.some(o => o.mod_rank != null);
+
+    if (!hasRanks) {
+      const sells = online.filter(o => o.order_type === 'sell').map(o => o.platinum);
+      const buys  = online.filter(o => o.order_type === 'buy').map(o => o.platinum);
+      if (!sells.length || !buys.length) return null;
+      const minSell = Math.min(...sells);
+      const maxBuy  = Math.max(...buys);
+      return { type: 'spread', minSell, maxBuy, spread: minSell - maxBuy };
+    }
+
+    // Group by mod_rank
+    const map = new Map();
+    online.forEach(o => {
+      const r = o.mod_rank ?? 0;
+      if (!map.has(r)) map.set(r, { sells: [], buys: [] });
+      if (o.order_type === 'sell') map.get(r).sells.push(o.platinum);
+      else                         map.get(r).buys.push(o.platinum);
+    });
+
+    let ranks = [...map.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([rank, { sells, buys }]) => {
+        const minSell = sells.length ? Math.min(...sells) : null;
+        const maxBuy  = buys.length  ? Math.max(...buys)  : null;
+        return {
+          rank,
+          minSell,
+          maxBuy,
+          spread:    minSell != null && maxBuy != null ? minSell - maxBuy : null,
+          sellCount: sells.length,
+          buyCount:  buys.length,
+        };
+      });
+
+    // If too many ranks, keep only first (unranked) and last (max)
+    if (ranks.length > 5) ranks = [ranks[0], ranks[ranks.length - 1]];
+
+    return { type: 'ranked', ranks };
   } catch { return null; }
 }
 
@@ -486,6 +521,28 @@ function buildInsightsHTML({ signal, volatility, bestHour, ducatData, spreadData
         </div>` : ''}
       ${ducatChipHTML}
       ${spreadData ? (() => {
+        if (spreadData.type === 'ranked') {
+          const rows = spreadData.ranks.map(r => {
+            const spreadCls = r.spread == null ? '' : r.spread < 0 ? 'wfm-ph-spread-neg' : r.spread <= 5 ? 'wfm-ph-spread-tight' : '';
+            return `
+            <div class="wfm-ph-rank-row">
+              <span class="wfm-ph-rank-lbl">R${r.rank}</span>
+              <span>sell <b>${r.minSell ?? '—'}p</b></span>
+              <span class="wfm-ph-ins-dim">/ buy ${r.maxBuy ?? '—'}p</span>
+              ${r.spread != null ? `<span class="wfm-ph-spread-tag ${spreadCls}">Δ${r.spread}p</span>` : ''}
+              <span class="wfm-ph-ins-dim">${r.sellCount}↓ ${r.buyCount}↑</span>
+            </div>`;
+          }).join('');
+          return `
+          <div class="wfm-ph-insight wfm-ph-ins-neutral">
+            <span class="wfm-ph-ins-icon">🎯</span>
+            <span>
+              <b data-tooltip="Current open orders from online/ingame traders, grouped by mod rank.">Live prices by rank</b>
+              <span class="wfm-ph-ins-dim" data-tooltip="These are open orders right now, not historical averages. Prices may change as traders come and go."> · snapshot, not historical</span>
+              <div class="wfm-ph-rank-rows">${rows}</div>
+            </span>
+          </div>`;
+        }
         const spreadCls = spreadData.spread < 0 ? 'wfm-ph-ins-volatile' : spreadData.spread <= 5 ? 'wfm-ph-ins-buy' : 'wfm-ph-ins-moderate';
         return `
         <div class="wfm-ph-insight ${spreadCls}">
