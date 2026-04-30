@@ -215,11 +215,8 @@
 
   async function fetchSpreadData(slug) {
     try {
-      const res = await fetch(`${API_BASE}/items/${slug}/orders`, {
-        headers: { 'Language': 'en', 'Platform': 'pc' }
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
+      const json = await sendMsg({ type: 'FETCH_ORDERS', slug });
+      if (!json) return null;
       const orders = json.payload.orders ?? [];
       const online = orders.filter(o => o.user.status === 'ingame' || o.user.status === 'online');
       if (!online.length) return null;
