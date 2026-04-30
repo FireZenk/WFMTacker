@@ -14,7 +14,16 @@
   // ── Storage helpers ───────────────────────────────────────────────────────
 
   function sendMsg(msg) {
-    return new Promise(resolve => browser.runtime.sendMessage(msg, resolve));
+    return new Promise((resolve, reject) => {
+      try {
+        browser.runtime.sendMessage(msg, resolve);
+      } catch (e) {
+        if (e?.message?.includes('Extension context invalidated')) {
+          location.reload();
+        }
+        reject(e);
+      }
+    });
   }
   const getWatchlist  = ()       => sendMsg({ type: 'GET_WATCHLIST' });
   const saveWatchlist = list     => sendMsg({ type: 'SAVE_WATCHLIST', watchlist: list });
