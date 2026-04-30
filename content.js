@@ -150,8 +150,8 @@
 
   // ── API ──────────────────────────────────────────────────────────────────────
 
-  async function fetchStats(slug, modRank = null) {
-    const url = `${API_BASE}/items/${slug}/statistics?include=item${modRank !== null ? '&mod_rank=' + modRank : ''}`;
+  async function fetchStats(slug) {
+    const url = `${API_BASE}/items/${slug}/statistics?include=item`;
     const res = await fetch(url, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
@@ -211,49 +211,6 @@
     } catch { return null; }
   }
 
-  async function fetchSpreadData(slug) {
-    try {
-      const res = await fetch(`${API_BASE}/items/${slug}/orders`);
-      if (!res.ok) return null;
-      const json = await res.json();
-      const orders = json.payload.orders ?? [];
-      const online = orders.filter(o => o.user.status === 'ingame' || o.user.status === 'online');
-      if (!online.length) return null;
-
-      const hasRanks = online.some(o => o.mod_rank != null);
-
-      if (!hasRanks) {
-        const sells = online.filter(o => o.order_type === 'sell').map(o => o.platinum);
-        const buys  = online.filter(o => o.order_type === 'buy').map(o => o.platinum);
-        if (!sells.length || !buys.length) return null;
-        const minSell = Math.min(...sells);
-        const maxBuy  = Math.max(...buys);
-        return { type: 'spread', minSell, maxBuy, spread: minSell - maxBuy };
-      }
-
-      const map = new Map();
-      online.forEach(o => {
-        const r = o.mod_rank ?? 0;
-        if (!map.has(r)) map.set(r, { sells: [], buys: [] });
-        if (o.order_type === 'sell') map.get(r).sells.push(o.platinum);
-        else                         map.get(r).buys.push(o.platinum);
-      });
-
-      let ranks = [...map.entries()]
-        .sort(([a], [b]) => a - b)
-        .map(([rank, { sells, buys }]) => ({
-          rank,
-          minSell:   sells.length ? Math.min(...sells) : null,
-          maxBuy:    buys.length  ? Math.max(...buys)  : null,
-          spread:    sells.length && buys.length ? Math.min(...sells) - Math.max(...buys) : null,
-          sellCount: sells.length,
-          buyCount:  buys.length,
-        }));
-
-      if (ranks.length > 5) ranks = [ranks[0], ranks[ranks.length - 1]];
-      return { type: 'ranked', ranks };
-    } catch { return null; }
-  }
 
   async function fetchPartPrice(slug) {
     try {
@@ -516,7 +473,7 @@
 
   // ── Widget ───────────────────────────────────────────────────────────────────
 
-  function buildWidget(slug, statsData, v2Data = null, spreadData = null) {
+  function buildWidget(slug, statsData, v2Data = null) {
     let curDays90  = (statsData.closed['90days']  || []).slice(-90);
     let curHours48 = (statsData.closed['48hours'] || []).slice(-48);
 
@@ -636,36 +593,6 @@
               <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
             </div>` : ''}
           ${ducatChipHTML}
-          ${spreadData ? (() => {
-            if (spreadData.type === 'ranked') {
-              const rows = spreadData.ranks.map(r => {
-                const spreadCls = r.spread == null ? '' : r.spread < 0 ? 'wfm-ph-spread-neg' : r.spread <= 5 ? 'wfm-ph-spread-tight' : '';
-                return `
-                <div class="wfm-ph-rank-row">
-                  <span class="wfm-ph-rank-lbl">R${r.rank}</span>
-                  <span>sell <b>${r.minSell ?? '—'}p</b></span>
-                  <span class="wfm-ph-ins-dim">/ buy ${r.maxBuy ?? '—'}p</span>
-                  ${r.spread != null ? `<span class="wfm-ph-spread-tag ${spreadCls}">Δ${r.spread}p</span>` : ''}
-                  <span class="wfm-ph-ins-dim">${r.sellCount}↓ ${r.buyCount}↑</span>
-                </div>`;
-              }).join('');
-              return `
-              <div class="wfm-ph-insight wfm-ph-ins-neutral">
-                <span class="wfm-ph-ins-icon">🎯</span>
-                <span>
-                  <b data-tooltip="Current open orders from online/ingame traders, grouped by mod rank.">Live prices by rank</b>
-                  <span class="wfm-ph-ins-dim" data-tooltip="These are open orders right now, not historical averages. Prices change as traders come and go."> · snapshot, not historical</span>
-                  <div class="wfm-ph-rank-rows">${rows}</div>
-                </span>
-              </div>`;
-            }
-            const spreadCls = spreadData.spread < 0 ? 'wfm-ph-ins-volatile' : spreadData.spread <= 5 ? 'wfm-ph-ins-buy' : 'wfm-ph-ins-moderate';
-            return `
-            <div class="wfm-ph-insight ${spreadCls}">
-              <span class="wfm-ph-ins-icon">↔</span>
-              <span><b>Spread: ${spreadData.spread}p</b> <span class="wfm-ph-ins-dim" data-tooltip="Gap between lowest online sell order and highest online buy order. Tight spread = liquid market. Negative = buy orders exceed sell price.">sell ${spreadData.minSell}p / buy ${spreadData.maxBuy}p</span></span>
-            </div>`;
-          })() : ''}
           ${vaultChipHTML}
           ${liquidity ? (() => {
             const dots = Array.from({ length: 10 }, (_, i) =>
@@ -1056,19 +983,18 @@
   async function injectWidget(slug) {
     document.getElementById(WIDGET_ID)?.remove();
 
-    const [statsData, anchorEl, v2Data, , spreadData] = await Promise.all([
+    const [statsData, anchorEl, v2Data] = await Promise.all([
       fetchStats(slug).catch(() => null),
       waitForAnchor(),
       fetchItemV2(slug).catch(() => null),
       loadVaultData(),
-      fetchSpreadData(slug).catch(() => null),
     ]);
 
     if (getItemSlug() !== slug) return;
     if (!statsData || !anchorEl) return;
     if (document.getElementById(WIDGET_ID)) return;
 
-    const widget = buildWidget(slug, statsData, v2Data, spreadData);
+    const widget = buildWidget(slug, statsData, v2Data, null);
     if (!widget) return;
 
     if (anchorEl.id === 'wfm-itempage-zone-lg') {

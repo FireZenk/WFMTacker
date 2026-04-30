@@ -79,15 +79,14 @@ async function loadItem(slug) {
   content.innerHTML = '<div class="wfm-panel-loading">Loading…</div>';
 
   try {
-    const [statsData, v2Data, spreadData, vaultData] = await Promise.all([
+    const [statsData, v2Data, vaultData] = await Promise.all([
       fetchStats(slug),
       fetchItemV2(slug).catch(() => null),
-      fetchSpreadData(slug).catch(() => null),
       loadVaultData(),
     ]);
 
     if (currentSlug !== slug) return;
-    renderItem(slug, statsData, v2Data, spreadData, vaultData);
+    renderItem(slug, statsData, v2Data, vaultData);
   } catch (e) {
     if (currentSlug !== slug) return;
     content.innerHTML = `<div class="wfm-panel-error">Failed to load data for this item.</div>`;
@@ -96,7 +95,7 @@ async function loadItem(slug) {
 
 // ── Render item ───────────────────────────────────────────────────────────────
 
-async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
+async function renderItem(slug, statsData, v2Data, vaultData) {
   let curDays90  = (statsData.closed['90days']  || []).slice(-90);
   let curHours48 = (statsData.closed['48hours'] || []).slice(-48);
 
@@ -170,7 +169,6 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
       volatility: calcVolatility(d90),
       bestHour:   calcBestHour(d48),
       ducatData:  (isPrime && ducats > 0) ? { ducats, platPrice: lp_plat } : null,
-      spreadData,
       vaultStatus,
       liquidity:  calcLiquidity(d90),
     });

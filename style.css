@@ -182,48 +182,6 @@
   border-bottom-color: var(--wfm-teal);
 }
 
-/* ── Rank price rows ─────────────────────────────────────── */
-
-.wfm-ph-rank-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 5px;
-}
-
-.wfm-ph-rank-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.wfm-ph-rank-lbl {
-  font-weight: 700;
-  min-width: 26px;
-  color: var(--wfm-teal);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-}
-
-.wfm-ph-spread-tag {
-  background: rgba(255,255,255,0.06);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 10px;
-  color: var(--wfm-text-muted);
-}
-
-.wfm-ph-spread-tag.wfm-ph-spread-tight {
-  background: rgba(94, 200, 208, 0.12);
-  color: var(--wfm-teal);
-}
-
-.wfm-ph-spread-tag.wfm-ph-spread-neg {
-  background: rgba(232, 83, 138, 0.12);
-  color: var(--wfm-pink);
-}
-
 /* ── Insights ────────────────────────────────────────────── */
 
 .wfm-ph-insights {
