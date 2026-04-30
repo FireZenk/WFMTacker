@@ -111,11 +111,4 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
-  if (msg.type === 'FETCH_ORDERS') {
-    return fetch(`${API_BASE}/items/${msg.slug}/orders`, {
-      headers: { 'Language': 'en', 'Platform': 'pc' }
-    })
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null);
-  }
 });
