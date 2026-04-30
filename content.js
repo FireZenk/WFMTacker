@@ -405,6 +405,7 @@
           ${volBars}
           <path d="${linePath}" class="wfm-ph-line"/>
           ${forecastSVG}
+          ${points.map((p, i) => `<circle cx="${sx(i).toFixed(1)}" cy="${sy(avgs[i]).toFixed(1)}" r="8" class="wfm-ph-dot-hit" data-price="${Math.round(p.avg_price ?? p.wa_price ?? 0)}" data-date="${new Date(p.datetime).toLocaleDateString('en-US',{month:'short',day:'numeric'})}" data-vol="${p.volume ?? 0}"/>`).join('')}
         </g>
 
         <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + cH}" class="wfm-ph-axis"/>
@@ -727,12 +728,36 @@
     return widget;
   }
 
+  function setupChartTooltips(area) {
+    let tip = document.getElementById('wfm-ph-tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.id = 'wfm-ph-tip';
+      tip.className = 'wfm-ph-tip';
+      tip.hidden = true;
+      document.body.appendChild(tip);
+    }
+    tip.hidden = true;
+    area.querySelectorAll('.wfm-ph-dot-hit').forEach(c => {
+      c.addEventListener('mouseenter', () => {
+        tip.innerHTML = `<div class="wfm-ph-tip-date">${c.dataset.date}</div><div class="wfm-ph-tip-price">${c.dataset.price}p</div>${+c.dataset.vol > 0 ? `<div class="wfm-ph-tip-vol">Vol: ${c.dataset.vol}</div>` : ''}`;
+        tip.hidden = false;
+      });
+      c.addEventListener('mousemove', e => {
+        tip.style.left = `${e.clientX + 14}px`;
+        tip.style.top  = `${e.clientY - 52}px`;
+      });
+      c.addEventListener('mouseleave', () => { tip.hidden = true; });
+    });
+  }
+
   function renderChart(widget, points, forecastData = null) {
     const area = widget.querySelector('#wfm-ph-chart-area');
     if (!area) return;
     const W = area.clientWidth || 720;
     const H = Math.max(160, Math.round(W * 0.22));
     area.innerHTML = buildChart(points, W, H, forecastData);
+    setupChartTooltips(area);
   }
 
   // ── Injection ────────────────────────────────────────────────────────────────

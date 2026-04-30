@@ -793,3 +793,40 @@
     min-width: 70px;
   }
 }
+
+/* ── Chart hover tooltip ─────────────────────────────────── */
+
+.wfm-ph-dot-hit {
+  fill: transparent;
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.wfm-ph-dot-hit:hover {
+  fill: rgba(232, 83, 138, 0.2);
+}
+
+.wfm-ph-tip {
+  position: fixed;
+  background: #0d0d1a;
+  border: 1px solid #2e2e42;
+  border-radius: 3px;
+  padding: 5px 9px;
+  font-size: 11px;
+  color: #e8e8e8;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  pointer-events: none;
+  z-index: 99999;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.wfm-ph-tip-price {
+  font-weight: 600;
+  color: #e8538a;
+}
+
+.wfm-ph-tip-vol {
+  opacity: 0.55;
+  font-size: 10px;
+}

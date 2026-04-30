@@ -256,6 +256,7 @@ function drawChart(points, forecastData = null) {
   const W = area.clientWidth || 900;
   const H = Math.max(200, Math.round(W * 0.22));
   area.innerHTML = buildChart(points, W, H, forecastData);
+  setupChartTooltips(area);
 }
 
 // ── Watchlist toggle ──────────────────────────────────────────────────────────
