@@ -20,6 +20,7 @@ function saveWatchlist(list) {
 
 let currentSlug  = null;
 let currentRange = '90days';
+let currentRank  = null;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -62,9 +63,10 @@ function setupSearch() {
 
 // ── Load item ─────────────────────────────────────────────────────────────────
 
-async function loadItem(slug) {
+async function loadItem(slug, preserveRank = false) {
   currentSlug  = slug;
   currentRange = '90days';
+  if (!preserveRank) currentRank = null;
 
   const url = new URL(location.href);
   url.searchParams.set('item', slug);
@@ -80,8 +82,8 @@ async function loadItem(slug) {
 
   try {
     const [statsData, v2Data, spreadData, vaultData] = await Promise.all([
-      fetchStats(slug),
-      slug.includes('prime') ? fetchItemV2(slug) : Promise.resolve(null),
+      fetchStats(slug, currentRank),
+      fetchItemV2(slug).catch(() => null),
       fetchSpread(slug).catch(() => null),
       loadVaultData(),
     ]);
@@ -97,52 +99,92 @@ async function loadItem(slug) {
 // ── Render item ───────────────────────────────────────────────────────────────
 
 async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
-  const days90  = (statsData.closed['90days']  || []).slice(-90);
-  const hours48 = (statsData.closed['48hours'] || []).slice(-48);
+  let curDays90  = (statsData.closed['90days']  || []).slice(-90);
+  let curHours48 = (statsData.closed['48hours'] || []).slice(-48);
 
-  const activeSet    = days90.length ? days90 : hours48;
+  const activeSet = curDays90.length ? curDays90 : curHours48;
   if (!activeSet.length) {
     document.getElementById('wfm-panel-content').innerHTML =
       '<div class="wfm-panel-error">No price data available for this item.</div>';
     return;
   }
 
-  const forecastData = calcForecast(days90.length >= 7 ? days90 : hours48);
-  const predicted7d  = forecastData?.forecast?.[6] ?? null;
-  const signal       = calcSignal(days90);
-  const volatility   = calcVolatility(days90);
-  const bestHour     = calcBestHour(hours48);
-  const liquidity    = calcLiquidity(days90);
+  let curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
+  const rankInfo  = getRankInfo(v2Data);
 
-  const last = activeSet[activeSet.length - 1] || {};
-  const trend = activeSet.length >= 8
+  const last    = activeSet[activeSet.length - 1] || {};
+  const trend   = activeSet.length >= 8
     ? (activeSet[activeSet.length - 1].avg_price ?? 0) - (activeSet[activeSet.length - 8].avg_price ?? 0)
     : 0;
 
-  const isPrime   = v2Data?.tags?.includes('prime') ?? slug.includes('prime');
-  const ducats    = v2Data?.ducats ?? 0;
-  const platPrice = Math.round(last.wa_price ?? last.avg_price ?? 0);
+  const isPrime     = v2Data?.tags?.includes('prime') ?? slug.includes('prime');
+  const ducats      = v2Data?.ducats ?? 0;
+  const platPrice   = Math.round(last.wa_price ?? last.avg_price ?? 0);
   const vaultStatus = calcVaultStatus(slug, vaultData);
 
-  const predStr = predicted7d
-    ? (predicted7d.avg > platPrice
-        ? `<span class="wfm-ph-up">↑ ${fmt(predicted7d.avg)}</span>`
-        : `<span class="wfm-ph-down">↓ ${fmt(predicted7d.avg)}</span>`)
-    : '—';
+  const watchlist = await getWatchlist();
+  const isWatched = !!watchlist[slug];
+  const itemName  = slugToName(slug);
 
-  const watchlist   = await getWatchlist();
-  const isWatched   = !!watchlist[slug];
-  const itemName    = slugToName(slug);
+  function buildPanelStatsInner(d90, d48, fd) {
+    const active      = d90.length ? d90 : d48;
+    const lp          = active[active.length - 1] || {};
+    const predicted7d = fd?.forecast?.[6] ?? null;
+    const lp_plat     = Math.round(lp.wa_price ?? lp.avg_price ?? 0);
+    const predStr     = predicted7d
+      ? (predicted7d.avg > lp_plat
+          ? `<span class="wfm-ph-up">↑ ${fmt(predicted7d.avg)}</span>`
+          : `<span class="wfm-ph-down">↓ ${fmt(predicted7d.avg)}</span>`)
+      : '—';
+    return `
+        <div class="wfm-ph-stat">
+          <span class="wfm-ph-stat-label" data-tooltip="Lowest closed price in the last 24h">Min</span>
+          <span class="wfm-ph-stat-val">${fmt(lp.min_price)}</span>
+        </div>
+        <div class="wfm-ph-stat">
+          <span class="wfm-ph-stat-label" data-tooltip="Weighted average of all closed orders in the last 24h">Average</span>
+          <span class="wfm-ph-stat-val wfm-ph-avg">${fmt(lp.avg_price ?? lp.wa_price)}</span>
+        </div>
+        <div class="wfm-ph-stat">
+          <span class="wfm-ph-stat-label" data-tooltip="Highest closed price in the last 24h">Max</span>
+          <span class="wfm-ph-stat-val">${fmt(lp.max_price)}</span>
+        </div>
+        <div class="wfm-ph-stat">
+          <span class="wfm-ph-stat-label" data-tooltip="Middle price: half of trades were cheaper, half were more expensive">Median</span>
+          <span class="wfm-ph-stat-val">${fmt(lp.median)}</span>
+        </div>
+        <div class="wfm-ph-stat">
+          <span class="wfm-ph-stat-label" data-tooltip="Number of successfully closed trades in the last 24h">Volume</span>
+          <span class="wfm-ph-stat-val">${lp.volume ?? '—'}</span>
+        </div>
+        <div class="wfm-ph-stat wfm-ph-stat-forecast">
+          <span class="wfm-ph-stat-label" data-tooltip="Price prediction for 7 days from now, based on linear regression of the last 30 days">Forecast 7d</span>
+          <span class="wfm-ph-stat-val">${predStr}</span>
+          ${predicted7d ? `<span class="wfm-ph-stat-conf" data-tooltip="Confidence interval: actual price could differ by this amount based on historical volatility">±${fd.stdDev}p</span>` : ''}
+        </div>`;
+  }
 
-  const insightsHTML = buildInsightsHTML({
-    signal,
-    volatility,
-    bestHour,
-    ducatData: (isPrime && ducats > 0) ? { ducats, platPrice } : null,
-    spreadData,
-    vaultStatus,
-    liquidity,
-  });
+  function buildPanelInsights(d90, d48) {
+    const active      = d90.length ? d90 : d48;
+    const lp          = active[active.length - 1] || {};
+    const lp_plat     = Math.round(lp.wa_price ?? lp.avg_price ?? 0);
+    return buildInsightsHTML({
+      signal:     calcSignal(d90),
+      volatility: calcVolatility(d90),
+      bestHour:   calcBestHour(d48),
+      ducatData:  (isPrime && ducats > 0) ? { ducats, platPrice: lp_plat } : null,
+      spreadData,
+      vaultStatus,
+      liquidity:  calcLiquidity(d90),
+    });
+  }
+
+  const rankBtns = rankInfo ? `
+    <span class="wfm-panel-rank-sep"></span>
+    <button class="wfm-panel-rank-btn ${currentRank === null ? 'active' : ''}" data-rank="">All</button>
+    <button class="wfm-panel-rank-btn ${currentRank === 0 ? 'active' : ''}" data-rank="0">Unranked</button>
+    <button class="wfm-panel-rank-btn ${currentRank === rankInfo.maxRank ? 'active' : ''}" data-rank="max">Max</button>
+  ` : '';
 
   const content = document.getElementById('wfm-panel-content');
   content.innerHTML = `
@@ -158,38 +200,15 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
         </button>
       </div>
 
-      <div class="wfm-ph-stats-row">
-        <div class="wfm-ph-stat">
-          <span class="wfm-ph-stat-label" data-tooltip="Lowest closed price in the last 24h">Min</span>
-          <span class="wfm-ph-stat-val">${fmt(last.min_price)}</span>
-        </div>
-        <div class="wfm-ph-stat">
-          <span class="wfm-ph-stat-label" data-tooltip="Weighted average of all closed orders in the last 24h">Average</span>
-          <span class="wfm-ph-stat-val wfm-ph-avg">${fmt(last.avg_price ?? last.wa_price)}</span>
-        </div>
-        <div class="wfm-ph-stat">
-          <span class="wfm-ph-stat-label" data-tooltip="Highest closed price in the last 24h">Max</span>
-          <span class="wfm-ph-stat-val">${fmt(last.max_price)}</span>
-        </div>
-        <div class="wfm-ph-stat">
-          <span class="wfm-ph-stat-label" data-tooltip="Middle price: half of trades were cheaper, half were more expensive">Median</span>
-          <span class="wfm-ph-stat-val">${fmt(last.median)}</span>
-        </div>
-        <div class="wfm-ph-stat">
-          <span class="wfm-ph-stat-label" data-tooltip="Number of successfully closed trades in the last 24h">Volume</span>
-          <span class="wfm-ph-stat-val">${last.volume ?? '—'}</span>
-        </div>
-        <div class="wfm-ph-stat wfm-ph-stat-forecast">
-          <span class="wfm-ph-stat-label" data-tooltip="Price prediction for 7 days from now, based on linear regression of the last 30 days">Forecast 7d</span>
-          <span class="wfm-ph-stat-val">${predStr}</span>
-          ${predicted7d ? `<span class="wfm-ph-stat-conf" data-tooltip="Confidence interval: actual price could differ by this amount based on historical volatility">±${forecastData.stdDev}p</span>` : ''}
-        </div>
+      <div class="wfm-ph-stats-row" id="wfm-panel-stats-row">
+        ${buildPanelStatsInner(curDays90, curHours48, curForecast)}
       </div>
     </div>
 
     <div class="wfm-panel-tabs">
       <button class="wfm-panel-tab active" data-range="90days">90 days</button>
       <button class="wfm-panel-tab" data-range="48hours">48 hours</button>
+      ${rankBtns}
     </div>
 
     <div class="wfm-panel-chart-wrap" id="wfm-panel-chart-area"></div>
@@ -201,31 +220,53 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
       <span class="wfm-ph-leg wfm-ph-leg-forecast" data-tooltip="7-day price forecast projected using linear regression on the last 30 days">╌ Forecast</span>
     </div>
 
-    ${insightsHTML}
+    <div id="wfm-panel-insights-zone">${buildPanelInsights(curDays90, curHours48)}</div>
 
     <div id="wfm-panel-arb-zone"></div>
   `;
 
-  // Draw initial chart
-  drawChart(days90.length ? days90 : hours48, forecastData);
+  drawChart(curDays90.length ? curDays90 : curHours48, curForecast);
 
-  // Tab switching
   content.querySelectorAll('.wfm-panel-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       content.querySelectorAll('.wfm-panel-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentRange = btn.dataset.range;
-      const pts = currentRange === '90days' ? days90 : hours48;
-      const fd  = currentRange === '90days' ? forecastData : null;
+      const pts = currentRange === '90days' ? curDays90 : curHours48;
+      const fd  = currentRange === '90days' ? curForecast : null;
       drawChart(pts, fd);
     });
   });
 
-  // Watch button
+  if (rankInfo) {
+    content.querySelectorAll('.wfm-panel-rank-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const rawRank = btn.dataset.rank;
+        const newRank = rawRank === '' ? null : rawRank === 'max' ? rankInfo.maxRank : Number(rawRank);
+        if (currentRank === newRank) return;
+        currentRank = newRank;
+        content.querySelectorAll('.wfm-panel-rank-btn').forEach(b => b.classList.toggle('active', b === btn));
+
+        const newStats = await fetchStats(slug, newRank).catch(() => null);
+        if (!newStats) return;
+
+        curDays90   = (newStats.closed['90days']  || []).slice(-90);
+        curHours48  = (newStats.closed['48hours'] || []).slice(-48);
+        curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
+
+        content.querySelector('#wfm-panel-stats-row').innerHTML    = buildPanelStatsInner(curDays90, curHours48, curForecast);
+        content.querySelector('#wfm-panel-insights-zone').innerHTML = buildPanelInsights(curDays90, curHours48);
+
+        const pts = currentRange === '90days' ? curDays90 : curHours48;
+        const fd  = currentRange === '90days' ? curForecast : null;
+        drawChart(pts, fd);
+      });
+    });
+  }
+
   content.querySelector('#wfm-panel-watch-btn').addEventListener('click', async () => {
     await toggleWatch(slug, itemName, platPrice);
     renderSidebar();
-    // Re-render button state
     const btn = content.querySelector('#wfm-panel-watch-btn');
     const list = await getWatchlist();
     const watched = !!list[slug];
@@ -237,14 +278,12 @@ async function renderItem(slug, statsData, v2Data, spreadData, vaultData) {
       ${watched ? 'Watching' : 'Watch'}`;
   });
 
-  // Resize
   window.addEventListener('resize', () => {
-    const pts = currentRange === '90days' ? days90 : hours48;
-    const fd  = currentRange === '90days' ? forecastData : null;
+    const pts = currentRange === '90days' ? curDays90 : curHours48;
+    const fd  = currentRange === '90days' ? curForecast : null;
     drawChart(pts, fd);
   }, { passive: true });
 
-  // Arbitrage for set items
   if (slug.endsWith('_set')) {
     loadArbitrage(slug, statsData);
   }

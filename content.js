@@ -141,10 +141,18 @@
     };
   }
 
+  function getRankInfo(v2Data) {
+    if (!v2Data?.tags) return null;
+    const tags = v2Data.tags;
+    if (!tags.includes('mod') && !tags.includes('arcane')) return null;
+    return { maxRank: v2Data.modMaxRank ?? 5 };
+  }
+
   // ── API ──────────────────────────────────────────────────────────────────────
 
-  async function fetchStats(slug) {
-    const res = await fetch(`${API_BASE}/items/${slug}/statistics?include=item`, {
+  async function fetchStats(slug, modRank = null) {
+    const url = `${API_BASE}/items/${slug}/statistics?include=item${modRank !== null ? '&mod_rank=' + modRank : ''}`;
+    const res = await fetch(url, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -483,19 +491,16 @@
   // ── Widget ───────────────────────────────────────────────────────────────────
 
   function buildWidget(slug, statsData, v2Data = null, spreadData = null) {
-    const days90  = (statsData.closed['90days']  || []).slice(-90);
-    const hours48 = (statsData.closed['48hours'] || []).slice(-48);
+    let curDays90  = (statsData.closed['90days']  || []).slice(-90);
+    let curHours48 = (statsData.closed['48hours'] || []).slice(-48);
 
-    const activeSet = days90.length ? days90 : hours48;
+    const activeSet = curDays90.length ? curDays90 : curHours48;
     if (!activeSet.length) return null;
 
-    const forecastData = calcForecast(days90.length >= 7 ? days90 : hours48);
-    const predicted7d  = forecastData?.forecast?.[6] ?? null;
-    const signal       = calcSignal(days90);
-    const volatility   = calcVolatility(days90);
-    const bestHour     = calcBestHour(hours48);
-    const liquidity    = calcLiquidity(days90);
+    let curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
+    const rankInfo  = getRankInfo(v2Data);
 
+    // Trend uses initial all-rank data — static, doesn't change with rank toggle
     const last = activeSet[activeSet.length - 1] || {};
     const trend = activeSet.length >= 8
       ? (activeSet[activeSet.length - 1].avg_price ?? 0) - (activeSet[activeSet.length - 8].avg_price ?? 0)
@@ -506,89 +511,133 @@
       ? `<span class="wfm-ph-down">▼ ${fmt(Math.abs(trend))}</span>`
       : '';
 
-    const predStr = predicted7d
-      ? (predicted7d.avg > (last.avg_price ?? 0)
-          ? `<span class="wfm-ph-up">↑ ${fmt(predicted7d.avg)}</span>`
-          : `<span class="wfm-ph-down">↓ ${fmt(predicted7d.avg)}</span>`)
-      : '—';
+    // Static values — don't change with rank toggle
+    const isPrime     = v2Data?.tags?.includes('prime') ?? slug.includes('prime');
+    const ducats      = v2Data?.ducats ?? 0;
+    const vaultStatus = calcVaultStatus(slug, vaultData);
 
-    // Ducat comparison (solo prime items con ducats > 0)
-    const isPrime  = v2Data?.tags?.includes('prime') ?? slug.includes('prime');
-    const ducats   = v2Data?.ducats ?? 0;
-    const platPrice = Math.round(last.wa_price ?? last.avg_price ?? 0);
-    const ducatChipHTML = (isPrime && ducats > 0 && platPrice > 0) ? (() => {
-      const ratio = (platPrice / ducats).toFixed(1);
-      const cls   = ratio >= 8 ? 'wfm-ph-ins-buy' : ratio >= 5 ? 'wfm-ph-ins-neutral' : 'wfm-ph-ins-moderate';
-      const tip   = ratio >= 8
-        ? `Selling for plat is much better`
-        : ratio >= 5
-        ? `Plat and ducats are roughly equivalent`
-        : `Ducats may be worth considering`;
+    function buildStatsRowInner(d90, d48, fd) {
+      const active      = d90.length ? d90 : d48;
+      const lp          = active[active.length - 1] || {};
+      const predicted7d = fd?.forecast?.[6] ?? null;
+      const platPrice   = Math.round(lp.wa_price ?? lp.avg_price ?? 0);
+      const predStr     = predicted7d
+        ? (predicted7d.avg > platPrice
+            ? `<span class="wfm-ph-up">↑ ${fmt(predicted7d.avg)}</span>`
+            : `<span class="wfm-ph-down">↓ ${fmt(predicted7d.avg)}</span>`)
+        : '—';
       return `
-        <div class="wfm-ph-insight ${cls}">
-          <span class="wfm-ph-ins-icon">${DUCAT_SVG}</span>
-          <span><b>${ducats}d</b> &nbsp;·&nbsp; <span data-tooltip="Platinum per Ducat ratio: how much platinum you get per ducat if you sell for plat instead. Compare across items to find the best value.">${ratio}p/d</span> &nbsp;<span class="wfm-ph-ins-dim">— ${tip}</span></span>
-        </div>`;
-    })() : '';
-
-    const vaultStatus    = calcVaultStatus(slug, vaultData);
-    const vaultChipHTML  = vaultStatus ? `
-        <div class="wfm-ph-insight ${vaultStatus.cls}">
-          <span class="wfm-ph-ins-icon">${vaultStatus.icon}</span>
-          <span><b>${vaultStatus.label}</b> <span class="wfm-ph-ins-dim" data-tooltip="${vaultStatus.tooltip}">${vaultStatus.sub}</span></span>
-        </div>` : '';
-
-    const volLabels  = ['🟢 Stable', '🟡 Moderate', '🔴 Volatile'];
-    const volClasses = ['wfm-ph-ins-stable', 'wfm-ph-ins-moderate', 'wfm-ph-ins-volatile'];
-    const sigIcons   = { buy: '🟢', sell: '🔴', neutral: '🔵' };
-    const sigClasses = { buy: 'wfm-ph-ins-buy', sell: 'wfm-ph-ins-sell', neutral: 'wfm-ph-ins-neutral' };
-
-    const insightsHTML = `
-      <div class="wfm-ph-insights">
-        ${signal ? `
-          <div class="wfm-ph-insight ${sigClasses[signal.type]}">
-            <span class="wfm-ph-ins-icon">${sigIcons[signal.type]}</span>
-            <span>${signal.text}</span>
-          </div>` : ''}
-        ${volatility ? `
-          <div class="wfm-ph-insight ${volClasses[volatility.level]}">
-            <span class="wfm-ph-ins-icon">📊</span>
-            <span>${volLabels[volatility.level]} <span class="wfm-ph-ins-dim" data-tooltip="Coefficient of Variation: measures price stability relative to the average. Under 10% = stable, 10–25% = moderate, above 25% = volatile">(CV ${volatility.cv}%)</span></span>
-          </div>` : ''}
-        ${bestHour ? `
-          <div class="wfm-ph-insight wfm-ph-ins-hour">
-            <span class="wfm-ph-ins-icon">🕐</span>
-            <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
+          <div class="wfm-ph-stat">
+            <span class="wfm-ph-stat-label" data-tooltip="Lowest closed price in the last 24h">Min</span>
+            <span class="wfm-ph-stat-val">${fmt(lp.min_price)}</span>
           </div>
-          <div class="wfm-ph-insight wfm-ph-ins-sell">
-            <span class="wfm-ph-ins-icon">💰</span>
-            <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
-          </div>` : ''}
-        ${ducatChipHTML}
-        ${spreadData ? (() => {
-          const spreadCls = spreadData.spread < 0 ? 'wfm-ph-ins-volatile' : spreadData.spread <= 5 ? 'wfm-ph-ins-buy' : 'wfm-ph-ins-moderate';
-          return `
-          <div class="wfm-ph-insight ${spreadCls}">
-            <span class="wfm-ph-ins-icon">↔</span>
-            <span><b>Spread: ${spreadData.spread}p</b> <span class="wfm-ph-ins-dim" data-tooltip="Gap between lowest online sell order and highest online buy order. Tight spread = liquid market. Negative = buy orders exceed sell price.">sell ${spreadData.minSell}p / buy ${spreadData.maxBuy}p</span></span>
+          <div class="wfm-ph-stat">
+            <span class="wfm-ph-stat-label" data-tooltip="Weighted average of all closed orders in the last 24h">Average</span>
+            <span class="wfm-ph-stat-val wfm-ph-avg">${fmt(lp.avg_price ?? lp.wa_price)}</span>
+          </div>
+          <div class="wfm-ph-stat">
+            <span class="wfm-ph-stat-label" data-tooltip="Highest closed price in the last 24h">Max</span>
+            <span class="wfm-ph-stat-val">${fmt(lp.max_price)}</span>
+          </div>
+          <div class="wfm-ph-stat">
+            <span class="wfm-ph-stat-label" data-tooltip="Middle price: half of trades were cheaper, half were more expensive">Median</span>
+            <span class="wfm-ph-stat-val">${fmt(lp.median)}</span>
+          </div>
+          <div class="wfm-ph-stat">
+            <span class="wfm-ph-stat-label" data-tooltip="Number of successfully closed trades in the last 24h">Volume</span>
+            <span class="wfm-ph-stat-val">${lp.volume ?? '—'}</span>
+          </div>
+          <div class="wfm-ph-stat wfm-ph-stat-forecast">
+            <span class="wfm-ph-stat-label" data-tooltip="Price prediction for 7 days from now, based on linear regression of the last 30 days">Forecast 7d</span>
+            <span class="wfm-ph-stat-val">${predStr}</span>
+            ${predicted7d ? `<span class="wfm-ph-stat-conf" data-tooltip="Confidence interval: the actual price could be higher or lower by this amount, based on historical volatility">±${fd.stdDev}p</span>` : ''}
           </div>`;
-        })() : ''}
-        ${vaultChipHTML}
-        ${liquidity ? (() => {
-          const dots = Array.from({ length: 10 }, (_, i) =>
-            `<span class="wfm-ph-liq-dot${i < liquidity.score ? ' wfm-ph-liq-dot-on' : ''}" style="${i < liquidity.score ? `background:var(--wfm-liq-${liquidity.label.toLowerCase()})` : ''}"></span>`
-          ).join('');
-          return `
-          <div class="wfm-ph-insight ${liquidity.cls}">
-            <span class="wfm-ph-ins-icon">💧</span>
-            <span>
-              <b data-tooltip="Liquidity score (1 = very hard to sell, 10 = trades daily). Based on average daily volume and activity over the last ${liquidity.totalDays} days.">${liquidity.label} liquidity</b>
-              <span class="wfm-ph-liq-bar">${dots}</span>
-              <span class="wfm-ph-ins-dim">${liquidity.score}/10 · ~${liquidity.avgVol} trades/day · active ${liquidity.activeDays}/${liquidity.totalDays} days</span>
-            </span>
+    }
+
+    function buildInsightsInner(d90, d48) {
+      const active     = d90.length ? d90 : d48;
+      const lp         = active[active.length - 1] || {};
+      const platPrice  = Math.round(lp.wa_price ?? lp.avg_price ?? 0);
+      const signal     = calcSignal(d90);
+      const volatility = calcVolatility(d90);
+      const bestHour   = calcBestHour(d48);
+      const liquidity  = calcLiquidity(d90);
+
+      const ducatChipHTML = (isPrime && ducats > 0 && platPrice > 0) ? (() => {
+        const ratio = (platPrice / ducats).toFixed(1);
+        const cls   = ratio >= 8 ? 'wfm-ph-ins-buy' : ratio >= 5 ? 'wfm-ph-ins-neutral' : 'wfm-ph-ins-moderate';
+        const tip   = ratio >= 8
+          ? `Selling for plat is much better`
+          : ratio >= 5
+          ? `Plat and ducats are roughly equivalent`
+          : `Ducats may be worth considering`;
+        return `
+          <div class="wfm-ph-insight ${cls}">
+            <span class="wfm-ph-ins-icon">${DUCAT_SVG}</span>
+            <span><b>${ducats}d</b> &nbsp;·&nbsp; <span data-tooltip="Platinum per Ducat ratio: how much platinum you get per ducat if you sell for plat instead. Compare across items to find the best value.">${ratio}p/d</span> &nbsp;<span class="wfm-ph-ins-dim">— ${tip}</span></span>
           </div>`;
-        })() : ''}
-      </div>`;
+      })() : '';
+
+      const vaultChipHTML = vaultStatus ? `
+          <div class="wfm-ph-insight ${vaultStatus.cls}">
+            <span class="wfm-ph-ins-icon">${vaultStatus.icon}</span>
+            <span><b>${vaultStatus.label}</b> <span class="wfm-ph-ins-dim" data-tooltip="${vaultStatus.tooltip}">${vaultStatus.sub}</span></span>
+          </div>` : '';
+
+      const volLabels  = ['🟢 Stable', '🟡 Moderate', '🔴 Volatile'];
+      const volClasses = ['wfm-ph-ins-stable', 'wfm-ph-ins-moderate', 'wfm-ph-ins-volatile'];
+      const sigIcons   = { buy: '🟢', sell: '🔴', neutral: '🔵' };
+      const sigClasses = { buy: 'wfm-ph-ins-buy', sell: 'wfm-ph-ins-sell', neutral: 'wfm-ph-ins-neutral' };
+
+      return `
+        <div class="wfm-ph-insights">
+          ${signal ? `
+            <div class="wfm-ph-insight ${sigClasses[signal.type]}">
+              <span class="wfm-ph-ins-icon">${sigIcons[signal.type]}</span>
+              <span>${signal.text}</span>
+            </div>` : ''}
+          ${volatility ? `
+            <div class="wfm-ph-insight ${volClasses[volatility.level]}">
+              <span class="wfm-ph-ins-icon">📊</span>
+              <span>${volLabels[volatility.level]} <span class="wfm-ph-ins-dim" data-tooltip="Coefficient of Variation: measures price stability relative to the average. Under 10% = stable, 10–25% = moderate, above 25% = volatile">(CV ${volatility.cv}%)</span></span>
+            </div>` : ''}
+          ${bestHour ? `
+            <div class="wfm-ph-insight wfm-ph-ins-hour">
+              <span class="wfm-ph-ins-icon">🕐</span>
+              <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
+            </div>
+            <div class="wfm-ph-insight wfm-ph-ins-sell">
+              <span class="wfm-ph-ins-icon">💰</span>
+              <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
+            </div>` : ''}
+          ${ducatChipHTML}
+          ${spreadData ? (() => {
+            const spreadCls = spreadData.spread < 0 ? 'wfm-ph-ins-volatile' : spreadData.spread <= 5 ? 'wfm-ph-ins-buy' : 'wfm-ph-ins-moderate';
+            return `
+            <div class="wfm-ph-insight ${spreadCls}">
+              <span class="wfm-ph-ins-icon">↔</span>
+              <span><b>Spread: ${spreadData.spread}p</b> <span class="wfm-ph-ins-dim" data-tooltip="Gap between lowest online sell order and highest online buy order. Tight spread = liquid market. Negative = buy orders exceed sell price.">sell ${spreadData.minSell}p / buy ${spreadData.maxBuy}p</span></span>
+            </div>`;
+          })() : ''}
+          ${vaultChipHTML}
+          ${liquidity ? (() => {
+            const dots = Array.from({ length: 10 }, (_, i) =>
+              `<span class="wfm-ph-liq-dot${i < liquidity.score ? ' wfm-ph-liq-dot-on' : ''}" style="${i < liquidity.score ? `background:var(--wfm-liq-${liquidity.label.toLowerCase()})` : ''}"></span>`
+            ).join('');
+            return `
+            <div class="wfm-ph-insight ${liquidity.cls}">
+              <span class="wfm-ph-ins-icon">💧</span>
+              <span>
+                <b data-tooltip="Liquidity score (1 = very hard to sell, 10 = trades daily). Based on average daily volume and activity over the last ${liquidity.totalDays} days.">${liquidity.label} liquidity</b>
+                <span class="wfm-ph-liq-bar">${dots}</span>
+                <span class="wfm-ph-ins-dim">${liquidity.score}/10 · ~${liquidity.avgVol} trades/day · active ${liquidity.activeDays}/${liquidity.totalDays} days</span>
+              </span>
+            </div>`;
+          })() : ''}
+        </div>`;
+    }
+
+    const insightsHTML = buildInsightsInner(curDays90, curHours48);
 
     const widget = document.createElement('div');
     widget.id = WIDGET_ID;
@@ -606,11 +655,11 @@
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/></svg>
           </button>
           <div class="wfm-ph-copy-group">
-            <button class="wfm-ph-copy-btn" data-copy="${Math.round(last.avg_price ?? last.wa_price ?? 0)}" data-tooltip="Copy average price to clipboard — paste it directly in the WFM trade chat">
+            <button class="wfm-ph-copy-btn" id="wfm-ph-copy-avg" data-copy="${Math.round(last.avg_price ?? last.wa_price ?? 0)}" data-tooltip="Copy average price to clipboard — paste it directly in the WFM trade chat">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="9" height="10" rx="1"/><path d="M3 3H2a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
               avg
             </button>
-            <button class="wfm-ph-copy-btn" data-copy="${Math.round(last.median ?? 0)}" data-tooltip="Copy median price to clipboard — more reliable than average as it ignores extreme outliers">
+            <button class="wfm-ph-copy-btn" id="wfm-ph-copy-median" data-copy="${Math.round(last.median ?? 0)}" data-tooltip="Copy median price to clipboard — more reliable than average as it ignores extreme outliers">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="9" height="10" rx="1"/><path d="M3 3H2a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
               median
             </button>
@@ -623,39 +672,21 @@
             </svg>
           </button>
         </div>
-        <div class="wfm-ph-stats-row">
-          <div class="wfm-ph-stat">
-            <span class="wfm-ph-stat-label" data-tooltip="Lowest closed price in the last 24h">Min</span>
-            <span class="wfm-ph-stat-val">${fmt(last.min_price)}</span>
-          </div>
-          <div class="wfm-ph-stat">
-            <span class="wfm-ph-stat-label" data-tooltip="Weighted average of all closed orders in the last 24h">Average</span>
-            <span class="wfm-ph-stat-val wfm-ph-avg">${fmt(last.avg_price ?? last.wa_price)}</span>
-          </div>
-          <div class="wfm-ph-stat">
-            <span class="wfm-ph-stat-label" data-tooltip="Highest closed price in the last 24h">Max</span>
-            <span class="wfm-ph-stat-val">${fmt(last.max_price)}</span>
-          </div>
-          <div class="wfm-ph-stat">
-            <span class="wfm-ph-stat-label" data-tooltip="Middle price: half of trades were cheaper, half were more expensive">Median</span>
-            <span class="wfm-ph-stat-val">${fmt(last.median)}</span>
-          </div>
-          <div class="wfm-ph-stat">
-            <span class="wfm-ph-stat-label" data-tooltip="Number of successfully closed trades in the last 24h">Volume</span>
-            <span class="wfm-ph-stat-val">${last.volume ?? '—'}</span>
-          </div>
-          <div class="wfm-ph-stat wfm-ph-stat-forecast">
-            <span class="wfm-ph-stat-label" data-tooltip="Price prediction for 7 days from now, based on linear regression of the last 30 days">Forecast 7d</span>
-            <span class="wfm-ph-stat-val">${predStr}</span>
-            ${predicted7d ? `<span class="wfm-ph-stat-conf" data-tooltip="Confidence interval: the actual price could be higher or lower by this amount, based on historical volatility">±${forecastData.stdDev}p</span>` : ''}
-          </div>
+        <div class="wfm-ph-stats-row" id="wfm-ph-stats-row">
+          ${buildStatsRowInner(curDays90, curHours48, curForecast)}
         </div>
         <div class="wfm-ph-tabs" role="tablist">
           <button class="wfm-ph-tab active" data-range="90days"  role="tab">90 days</button>
           <button class="wfm-ph-tab"         data-range="48hours" role="tab">48 hours</button>
+          ${rankInfo ? `
+            <span class="wfm-ph-rank-sep"></span>
+            <button class="wfm-ph-rank-btn active" data-rank="">All</button>
+            <button class="wfm-ph-rank-btn"        data-rank="0">Unranked</button>
+            <button class="wfm-ph-rank-btn"        data-rank="max">Max</button>
+          ` : ''}
         </div>
       </div>
-      ${insightsHTML}
+      <div id="wfm-ph-insights-zone">${insightsHTML}</div>
       <div class="wfm-ph-chart-wrap" id="wfm-ph-chart-area"></div>
       <div class="wfm-ph-footer">
         <div class="wfm-ph-legend">
@@ -712,18 +743,57 @@
       sendMsg({ type: 'OPEN_PANEL' });
     });
 
-    renderChart(widget, days90.length ? days90 : hours48, forecastData);
+    renderChart(widget, curDays90.length ? curDays90 : curHours48, curForecast);
 
     widget.querySelectorAll('.wfm-ph-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         widget.querySelectorAll('.wfm-ph-tab').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        // Forecast solo disponible en vista de 90 días (datos diarios)
-        const pts = btn.dataset.range === '90days' ? days90 : hours48;
-        const fd  = btn.dataset.range === '90days' ? forecastData : null;
+        const pts = btn.dataset.range === '90days' ? curDays90 : curHours48;
+        const fd  = btn.dataset.range === '90days' ? curForecast : null;
         renderChart(widget, pts, fd);
       });
     });
+
+    if (rankInfo) {
+      let currentRank = null;
+      widget.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const rawRank = btn.dataset.rank;
+          const newRank = rawRank === '' ? null : rawRank === 'max' ? rankInfo.maxRank : Number(rawRank);
+          if (currentRank === newRank) return;
+          currentRank = newRank;
+          widget.querySelectorAll('.wfm-ph-rank-btn').forEach(b => b.classList.toggle('active', b === btn));
+
+          const newStats = await fetchStats(slug, newRank).catch(() => null);
+          if (!newStats) return;
+
+          curDays90   = (newStats.closed['90days']  || []).slice(-90);
+          curHours48  = (newStats.closed['48hours'] || []).slice(-48);
+          curForecast = calcForecast(curDays90.length >= 7 ? curDays90 : curHours48);
+
+          widget.querySelector('#wfm-ph-stats-row').innerHTML   = buildStatsRowInner(curDays90, curHours48, curForecast);
+          widget.querySelector('#wfm-ph-insights-zone').innerHTML = buildInsightsInner(curDays90, curHours48);
+
+          const newLast = (curDays90.length ? curDays90 : curHours48).at(-1) || {};
+          widget.querySelector('#wfm-ph-copy-avg')?.setAttribute('data-copy', Math.round(newLast.avg_price ?? newLast.wa_price ?? 0));
+          widget.querySelector('#wfm-ph-copy-median')?.setAttribute('data-copy', Math.round(newLast.median ?? 0));
+
+          const activeTab = widget.querySelector('.wfm-ph-tab.active');
+          const pts = activeTab?.dataset.range === '48hours' ? curHours48 : curDays90;
+          const fd  = activeTab?.dataset.range === '48hours' ? null : curForecast;
+          renderChart(widget, pts, fd);
+        });
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      const activeTab = widget.querySelector('.wfm-ph-tab.active');
+      if (!activeTab) return;
+      const pts = activeTab.dataset.range === '90days' ? curDays90 : curHours48;
+      const fd  = activeTab.dataset.range === '90days' ? curForecast : null;
+      renderChart(widget, pts, fd);
+    }, { passive: true });
 
     return widget;
   }
@@ -980,7 +1050,7 @@
     const [statsData, anchorEl, v2Data, , spreadData] = await Promise.all([
       fetchStats(slug).catch(() => null),
       waitForAnchor(),
-      slug.includes('prime') ? fetchItemV2(slug) : Promise.resolve(null),
+      fetchItemV2(slug).catch(() => null),
       loadVaultData(),
       fetchSpread(slug).catch(() => null),
     ]);
@@ -999,15 +1069,6 @@
     } else {
       anchorEl.parentElement.insertBefore(widget, anchorEl);
     }
-
-    window.addEventListener('resize', () => {
-      const activeTab = widget.querySelector('.wfm-ph-tab.active');
-      if (!activeTab) return;
-      const pts = activeTab.dataset.range === '90days'
-        ? (statsData.closed['90days']  || []).slice(-90)
-        : (statsData.closed['48hours'] || []).slice(-48);
-      renderChart(widget, pts);
-    }, { passive: true });
 
     // Arbitrage: solo para páginas de set
     if (slug.endsWith('_set')) {

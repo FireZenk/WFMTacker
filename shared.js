@@ -33,13 +33,21 @@ function debounce(fn, ms) {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
-async function fetchStats(slug) {
-  const res = await fetch(`${API_BASE}/items/${slug}/statistics?include=item`, {
+async function fetchStats(slug, modRank = null) {
+  const url = `${API_BASE}/items/${slug}/statistics?include=item${modRank !== null ? '&mod_rank=' + modRank : ''}`;
+  const res = await fetch(url, {
     headers: { 'Language': 'en', 'Platform': 'pc' }
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   return { closed: json.payload.statistics_closed };
+}
+
+function getRankInfo(v2Data) {
+  if (!v2Data?.tags) return null;
+  const tags = v2Data.tags;
+  if (!tags.includes('mod') && !tags.includes('arcane')) return null;
+  return { maxRank: v2Data.modMaxRank ?? 5 };
 }
 
 async function fetchItemV2(slug) {
