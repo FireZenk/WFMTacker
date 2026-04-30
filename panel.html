@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WFM Tracker — Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body id="wfm-panel-body">
+
+  <div id="wfm-panel-root">
+
+    <header class="wfm-panel-header">
+      <div class="wfm-panel-logo">
+        <svg class="wfm-panel-logo-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6">
+          <polyline points="2,14 7,8 11,11 18,4"/>
+          <line x1="2" y1="18" x2="18" y2="18"/>
+        </svg>
+        <span class="wfm-panel-logo-text">WFM Tracker</span>
+      </div>
+
+      <div id="wfm-panel-search-wrap" class="wfm-panel-search-wrap">
+        <svg class="wfm-panel-search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="6.5" cy="6.5" r="4.5"/>
+          <line x1="10" y1="10" x2="14" y2="14"/>
+        </svg>
+        <input id="wfm-panel-search" class="wfm-panel-search" type="text"
+          placeholder="Search items… (press Enter)" autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="wfm-panel-header-right">
+        <a class="wfm-panel-header-link" href="https://discord.gg/wqTn6vKA" target="_blank" rel="noopener">Send Feedback</a>
+      </div>
+    </header>
+
+    <div class="wfm-panel-layout">
+
+      <aside id="wfm-panel-sidebar" class="wfm-panel-sidebar">
+        <div class="wfm-panel-sidebar-header">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/>
+          </svg>
+          Watchlist
+          <span id="wfm-panel-wl-count" class="wfm-panel-wl-count">0</span>
+        </div>
+        <div id="wfm-panel-wl-body" class="wfm-panel-wl-body">
+          <div class="wfm-panel-wl-empty">Loading…</div>
+        </div>
+        <div class="wfm-panel-sidebar-footer">
+          <button id="wfm-panel-wl-refresh" class="wfm-panel-wl-refresh" style="display:none">↻ Refresh prices</button>
+        </div>
+      </aside>
+
+      <main id="wfm-panel-content" class="wfm-panel-content">
+        <div class="wfm-panel-empty-state" id="wfm-panel-empty">
+          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5">
+            <polyline points="6,46 20,28 32,36 50,14"/>
+            <line x1="6" y1="56" x2="58" y2="56"/>
+          </svg>
+          <p>Search for an item to view its price history and market insights.</p>
+        </div>
+      </main>
+
+    </div>
+
+    <footer class="wfm-panel-footer">
+      <span class="wfm-panel-footer-donate" data-tooltip="Send gift Forma to OptimusRex007">Donate</span>
+      <a class="wfm-panel-footer-link" href="https://discord.gg/wqTn6vKA" target="_blank" rel="noopener">Send Feedback</a>
+      <a class="wfm-panel-footer-copy" href="https://linktr.ee/optrx" target="_blank" rel="noopener" id="wfm-panel-copyright"></a>
+    </footer>
+
+  </div>
+
+  <script src="browser-polyfill.min.js"></script>
+  <script src="shared.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

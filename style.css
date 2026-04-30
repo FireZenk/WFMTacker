@@ -347,6 +347,57 @@
 .wfm-ph-leg-vol      { color: var(--wfm-blue); opacity: 0.7; }
 .wfm-ph-leg-forecast { color: var(--wfm-teal); }
 
+.wfm-ph-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wfm-ph-donate {
+  font-size: 10px;
+  color: #3a3a50;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+
+.wfm-ph-popout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-radius: 3px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.wfm-ph-popout-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.wfm-ph-popout-btn:hover {
+  border-color: var(--wfm-blue);
+  color: var(--wfm-blue);
+}
+
+.wfm-ph-feedback {
+  font-size: 10px;
+  color: #3a3a50;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.wfm-ph-feedback:hover {
+  color: var(--wfm-text-muted);
+}
+
 .wfm-ph-copyright {
   font-size: 10px;
   color: #3a3a50;

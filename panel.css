@@ -1,0 +1,616 @@
+/* ============================================================
+   WFM Tracker — Dashboard panel styles
+   Defines CSS vars at :root so widget component classes
+   (wfm-ph-insight, wfm-ph-stat, etc.) work outside #wfm-ph-widget.
+   ============================================================ */
+
+:root {
+  --wfm-bg:         #17171f;
+  --wfm-surface:    #1e1e2c;
+  --wfm-border:     #2e2e42;
+  --wfm-teal:       #26d9c7;
+  --wfm-pink:       #e8538a;
+  --wfm-blue:       #5ec8d0;
+  --wfm-text:       #e8e8e8;
+  --wfm-text-muted: #808090;
+  --wfm-green:      #4caf50;
+  --wfm-orange:     #f5a623;
+  --wfm-liq-low:    #e8538a;
+  --wfm-liq-medium: #f5a623;
+  --wfm-liq-high:   #26d9c7;
+}
+
+/* ── Reset / Base ─────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--wfm-bg);
+  color: var(--wfm-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+}
+
+/* ── Root layout ──────────────────────────────────────────── */
+
+#wfm-panel-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+
+.wfm-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--wfm-surface);
+  border-bottom: 1px solid var(--wfm-border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.wfm-panel-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wfm-panel-logo-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--wfm-pink);
+}
+
+.wfm-panel-logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wfm-text);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* ── Search ───────────────────────────────────────────────── */
+
+.wfm-panel-search-wrap {
+  flex: 1;
+  position: relative;
+  max-width: 560px;
+}
+
+.wfm-panel-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.wfm-panel-search-icon:hover {
+  color: var(--wfm-text);
+}
+
+.wfm-panel-search {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  background: var(--wfm-bg);
+  border: 1px solid var(--wfm-border);
+  border-radius: 4px;
+  color: var(--wfm-text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.wfm-panel-search:focus {
+  border-color: var(--wfm-pink);
+}
+
+.wfm-panel-search::placeholder {
+  color: var(--wfm-text-muted);
+}
+
+.wfm-panel-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--wfm-surface);
+  border: 1px solid var(--wfm-border);
+  border-radius: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  z-index: 100;
+  max-height: 320px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.wfm-panel-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--wfm-text);
+  transition: background 0.1s;
+}
+
+.wfm-panel-result:hover,
+.wfm-panel-result.wfm-panel-result-active {
+  background: var(--wfm-bg);
+}
+
+.wfm-panel-result-name {
+  font-size: 12px;
+}
+
+/* ── Header right ─────────────────────────────────────────── */
+
+.wfm-panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.wfm-panel-header-link {
+  font-size: 11px;
+  color: var(--wfm-text-muted);
+  text-decoration: none;
+  letter-spacing: 0.03em;
+  transition: color 0.15s;
+}
+
+.wfm-panel-header-link:hover {
+  color: var(--wfm-text);
+}
+
+/* ── Layout (sidebar + content) ───────────────────────────── */
+
+.wfm-panel-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+
+.wfm-panel-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wfm-surface);
+  border-right: 1px solid var(--wfm-border);
+  overflow: hidden;
+}
+
+.wfm-panel-sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wfm-text-muted);
+  border-bottom: 1px solid var(--wfm-border);
+  flex-shrink: 0;
+}
+
+.wfm-panel-sidebar-header svg {
+  width: 12px;
+  height: 12px;
+}
+
+.wfm-panel-wl-count {
+  margin-left: auto;
+  background: var(--wfm-bg);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--wfm-text-muted);
+}
+
+.wfm-panel-wl-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.wfm-panel-wl-empty {
+  padding: 16px 14px;
+  color: var(--wfm-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.wfm-panel-sidebar-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--wfm-border);
+  flex-shrink: 0;
+}
+
+.wfm-panel-wl-refresh {
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-radius: 3px;
+  color: var(--wfm-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wfm-panel-wl-refresh:hover {
+  border-color: var(--wfm-blue);
+  color: var(--wfm-blue);
+}
+
+/* ── Watchlist rows ───────────────────────────────────────── */
+
+.wfm-panel-wl-row {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--wfm-border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.wfm-panel-wl-row:hover {
+  background: var(--wfm-bg);
+}
+
+.wfm-panel-wl-row.wfm-panel-wl-active {
+  background: rgba(232, 83, 138, 0.06);
+  border-left: 2px solid var(--wfm-pink);
+}
+
+.wfm-panel-wl-name {
+  font-size: 12px;
+  color: var(--wfm-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.wfm-panel-wl-prices {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.wfm-panel-wl-price {
+  color: var(--wfm-text);
+  font-weight: 500;
+}
+
+.wfm-panel-wl-up   { color: var(--wfm-teal); font-size: 10px; }
+.wfm-panel-wl-down { color: var(--wfm-pink); font-size: 10px; }
+
+.wfm-panel-wl-alerts {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.wfm-panel-wl-alert-label {
+  font-size: 10px;
+  color: var(--wfm-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wfm-panel-wl-alert-input {
+  width: 50px;
+  padding: 2px 4px;
+  background: var(--wfm-bg);
+  border: 1px solid var(--wfm-border);
+  border-radius: 2px;
+  color: var(--wfm-text);
+  font-size: 10px;
+}
+
+.wfm-panel-wl-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.wfm-panel-wl-remove {
+  background: transparent;
+  border: none;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.wfm-panel-wl-remove:hover {
+  color: var(--wfm-pink);
+}
+
+/* ── Content area ─────────────────────────────────────────── */
+
+.wfm-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--wfm-bg);
+}
+
+/* ── Empty state ──────────────────────────────────────────── */
+
+.wfm-panel-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--wfm-text-muted);
+}
+
+.wfm-panel-empty-state svg {
+  width: 64px;
+  height: 64px;
+  opacity: 0.2;
+}
+
+.wfm-panel-empty-state p {
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.6;
+}
+
+/* ── Loading / Error ──────────────────────────────────────── */
+
+.wfm-panel-loading,
+.wfm-panel-error {
+  padding: 40px;
+  text-align: center;
+  color: var(--wfm-text-muted);
+  font-size: 13px;
+}
+
+.wfm-panel-error {
+  color: var(--wfm-pink);
+}
+
+/* ── Item view ────────────────────────────────────────────── */
+
+.wfm-panel-item-header {
+  padding: 16px 24px 12px;
+  border-bottom: 1px solid var(--wfm-border);
+  background: var(--wfm-surface);
+}
+
+.wfm-panel-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.wfm-panel-item-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--wfm-text);
+}
+
+.wfm-panel-item-trend {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wfm-panel-item-trend.up   { color: var(--wfm-teal); }
+.wfm-panel-item-trend.down { color: var(--wfm-pink); }
+
+.wfm-panel-watch-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-radius: 3px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wfm-panel-watch-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wfm-panel-watch-btn:hover,
+.wfm-panel-watch-btn.active {
+  border-color: var(--wfm-orange);
+  color: var(--wfm-orange);
+}
+
+.wfm-panel-watch-btn.active svg {
+  fill: var(--wfm-orange);
+}
+
+/* ── Stats row — reuse wfm-ph-stats-row but override widget constraints ── */
+
+.wfm-panel-content .wfm-ph-stats-row {
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+
+.wfm-panel-tabs {
+  display: flex;
+  gap: 0;
+  padding: 10px 24px 0;
+}
+
+.wfm-panel-tab {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  color: var(--wfm-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  margin-right: 2px;
+}
+
+.wfm-panel-tab:hover {
+  color: var(--wfm-text);
+}
+
+.wfm-panel-tab.active {
+  background: var(--wfm-surface);
+  color: var(--wfm-text);
+  border-color: var(--wfm-border);
+}
+
+/* ── Chart area ───────────────────────────────────────────── */
+
+.wfm-panel-chart-wrap {
+  padding: 0 24px;
+  background: var(--wfm-surface);
+  border-bottom: 1px solid var(--wfm-border);
+}
+
+.wfm-panel-chart-wrap .wfm-ph-svg {
+  width: 100%;
+  display: block;
+}
+
+/* ── Legend ───────────────────────────────────────────────── */
+
+.wfm-panel-legend {
+  display: flex;
+  gap: 14px;
+  padding: 6px 24px 10px;
+  background: var(--wfm-surface);
+  border-bottom: 1px solid var(--wfm-border);
+  font-size: 10px;
+  color: var(--wfm-text-muted);
+}
+
+/* ── Insights in panel context ────────────────────────────── */
+
+.wfm-panel-content .wfm-ph-insights {
+  padding: 10px 24px;
+  background: var(--wfm-bg);
+  border-top: none;
+}
+
+/* ── Arbitrage in panel context ───────────────────────────── */
+
+.wfm-panel-content .wfm-ph-arb-section {
+  margin: 0 24px 16px;
+  border: 1px solid var(--wfm-border);
+  border-radius: 4px;
+  background: var(--wfm-surface);
+  overflow: hidden;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+
+.wfm-panel-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 20px;
+  background: var(--wfm-surface);
+  border-top: 1px solid var(--wfm-border);
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+
+.wfm-panel-footer-donate,
+.wfm-panel-footer-link,
+.wfm-panel-footer-copy {
+  font-size: 10px;
+  color: #3a3a50;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.wfm-panel-footer-donate {
+  cursor: default;
+}
+
+.wfm-panel-footer-link:hover,
+.wfm-panel-footer-copy:hover {
+  color: var(--wfm-text-muted);
+}
+
+/* ── Tooltip — same as widget ─────────────────────────────── */
+
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0d0d1a;
+  color: var(--wfm-text);
+  font-size: 10px;
+  padding: 5px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--wfm-border);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 9999;
+  max-width: 260px;
+  white-space: normal;
+  text-align: center;
+}
+
+[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--wfm-border);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 9999;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
+  opacity: 1;
+}

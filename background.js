@@ -16,6 +16,10 @@ browser.runtime.onInstalled.addListener(() => {
   browser.alarms.create(ALARM_NAME, { periodInMinutes: CHECK_MINS });
 });
 
+browser.action.onClicked.addListener(() => {
+  browser.tabs.create({ url: browser.runtime.getURL('panel.html') });
+});
+
 browser.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === ALARM_NAME) checkPrices();
 });
@@ -100,6 +104,11 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg.type === 'CHECK_NOW') {
     checkPrices().then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg.type === 'OPEN_PANEL') {
+    browser.tabs.create({ url: browser.runtime.getURL('panel.html') });
+    sendResponse({ ok: true });
     return true;
   }
 });

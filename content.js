@@ -614,6 +614,13 @@
               median
             </button>
           </div>
+          <button class="wfm-ph-popout-btn" id="wfm-ph-open-dash" data-tooltip="Open full dashboard in a new tab">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="4" width="9" height="9" rx="1"/>
+              <polyline points="8,2 14,2 14,8"/>
+              <line x1="8" y1="8" x2="14" y2="2"/>
+            </svg>
+          </button>
         </div>
         <div class="wfm-ph-stats-row">
           <div class="wfm-ph-stat">
@@ -656,7 +663,11 @@
           <span class="wfm-ph-leg wfm-ph-leg-vol" data-tooltip="Daily trade volume: number of successfully closed orders">▮ Volume</span>
           <span class="wfm-ph-leg wfm-ph-leg-forecast" data-tooltip="7-day price forecast projected using linear regression on the last 30 days">╌ Forecast</span>
         </div>
-        <a class="wfm-ph-copyright" href="https://linktr.ee/optrx" target="_blank" rel="noopener">© ${new Date().getFullYear()} OptimusRex · v${browser.runtime.getManifest().version}</a>
+        <div class="wfm-ph-footer-right">
+          <span class="wfm-ph-donate" data-tooltip="Send gift Forma to OptimusRex007">Donate</span>
+          <a class="wfm-ph-feedback" href="https://discord.gg/wqTn6vKA" target="_blank" rel="noopener">Send Feedback</a>
+          <a class="wfm-ph-copyright" href="https://linktr.ee/optrx" target="_blank" rel="noopener">© ${new Date().getFullYear()} OptimusRex · v${browser.runtime.getManifest().version}</a>
+        </div>
       </div>
     `;
 
@@ -694,6 +705,10 @@
           setTimeout(() => { btn.replaceChildren(...origNodes); btn.classList.remove('wfm-ph-copy-ok'); }, 1500);
         });
       });
+    });
+
+    widget.querySelector('#wfm-ph-open-dash').addEventListener('click', () => {
+      sendMsg({ type: 'OPEN_PANEL' });
     });
 
     renderChart(widget, days90.length ? days90 : hours48, forecastData);
