@@ -11,6 +11,27 @@
   const WIDGET_ID  = 'wfm-ph-widget';
   const PANEL_ID   = 'wfm-ph-watchlist-panel';
 
+  const DEFAULT_SETTINGS = {
+    timezone:       '',
+    defaultRange:   '90days',
+    showForecast:   true,
+    showSignal:     true,
+    showVolatility: true,
+    showLiquidity:  true,
+    showBestHour:   true,
+    showDucat:      true,
+    showVault:      true,
+    showArbitrage:  true,
+  };
+
+  function loadSettings() {
+    return new Promise(resolve =>
+      browser.storage.sync.get('settings', d =>
+        resolve({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}) })
+      )
+    );
+  }
+
   // ── Storage helpers ───────────────────────────────────────────────────────
 
   function sendMsg(msg) {
@@ -452,11 +473,16 @@
     return { score: finalScore, label, cls, avgVol: Math.round(avgVol * 10) / 10, activeDays, totalDays };
   }
 
-  function calcBestHour(hours48) {
+  function calcBestHour(hours48, timezone = '') {
     if (hours48.length < 12) return null;
+    const getHour = dt => {
+      if (!timezone) return new Date(dt).getHours();
+      const parts = new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: timezone }).formatToParts(new Date(dt));
+      return +parts.find(p => p.type === 'hour').value % 24;
+    };
     const byHour = {};
     hours48.forEach(p => {
-      const h = new Date(p.datetime).getHours();
+      const h = getHour(p.datetime);
       if (!byHour[h]) byHour[h] = [];
       byHour[h].push(p.avg_price ?? p.wa_price ?? 0);
     });
@@ -481,7 +507,7 @@
     };
   }
 
-  function buildWidget(slug, statsData, v2Data = null) {
+  function buildWidget(slug, statsData, v2Data = null, settings = DEFAULT_SETTINGS) {
     const allDays90  = statsData.closed['90days']  || [];
     const allHours48 = statsData.closed['48hours'] || [];
     const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
@@ -544,23 +570,24 @@
             <span class="wfm-ph-stat-label" data-tooltip="Number of successfully closed trades in the last 24h">Volume</span>
             <span class="wfm-ph-stat-val">${lp.volume ?? '—'}</span>
           </div>
+          ${settings.showForecast ? `
           <div class="wfm-ph-stat wfm-ph-stat-forecast">
             <span class="wfm-ph-stat-label" data-tooltip="Price prediction for 7 days from now, based on linear regression of the last 30 days">Forecast 7d</span>
             <span class="wfm-ph-stat-val">${predStr}</span>
             ${predicted7d ? `<span class="wfm-ph-stat-conf" data-tooltip="Confidence interval: the actual price could be higher or lower by this amount, based on historical volatility">±${fd.stdDev}p</span>` : ''}
-          </div>`;
+          </div>` : ''}`;
     }
 
     function buildInsightsInner(d90, d48) {
       const active     = d90.length ? d90 : d48;
       const lp         = active[active.length - 1] || {};
       const platPrice  = Math.round(lp.wa_price ?? lp.avg_price ?? 0);
-      const signal     = calcSignal(d90);
-      const volatility = calcVolatility(d90);
-      const bestHour   = calcBestHour(d48);
-      const liquidity  = calcLiquidity(d90);
+      const signal     = settings.showSignal     ? calcSignal(d90)                         : null;
+      const volatility = settings.showVolatility ? calcVolatility(d90)                     : null;
+      const bestHour   = settings.showBestHour   ? calcBestHour(d48, settings.timezone)    : null;
+      const liquidity  = settings.showLiquidity  ? calcLiquidity(d90)                      : null;
 
-      const ducatChipHTML = (isPrime && ducats > 0 && platPrice > 0) ? (() => {
+      const ducatChipHTML = (settings.showDucat && isPrime && ducats > 0 && platPrice > 0) ? (() => {
         const ratio = (platPrice / ducats).toFixed(1);
         const cls   = ratio >= 8 ? 'wfm-ph-ins-buy' : ratio >= 5 ? 'wfm-ph-ins-neutral' : 'wfm-ph-ins-moderate';
         const tip   = ratio >= 8
@@ -575,7 +602,7 @@
           </div>`;
       })() : '';
 
-      const vaultChipHTML = vaultStatus ? `
+      const vaultChipHTML = (settings.showVault && vaultStatus) ? `
           <div class="wfm-ph-insight ${vaultStatus.cls}">
             <span class="wfm-ph-ins-icon">${vaultStatus.icon}</span>
             <span><b>${vaultStatus.label}</b> <span class="wfm-ph-ins-dim" data-tooltip="${vaultStatus.tooltip}">${vaultStatus.sub}</span></span>
@@ -601,11 +628,11 @@
           ${bestHour ? `
             <div class="wfm-ph-insight wfm-ph-ins-hour">
               <span class="wfm-ph-ins-icon">🕐</span>
-              <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
+              <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="${settings.timezone ? `Timezone: ${settings.timezone}` : 'Your local browser time'}">(${settings.timezone || 'local time'})</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
             </div>
             <div class="wfm-ph-insight wfm-ph-ins-sell">
               <span class="wfm-ph-ins-icon">💰</span>
-              <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
+              <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="${settings.timezone ? `Timezone: ${settings.timezone}` : 'Your local browser time'}">(${settings.timezone || 'local time'})</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
             </div>` : ''}
           ${ducatChipHTML}
           ${vaultChipHTML}
@@ -665,8 +692,8 @@
           ${buildStatsRowInner(curDays90, curHours48, curForecast)}
         </div>
         <div class="wfm-ph-tabs" role="tablist">
-          <button class="wfm-ph-tab active" data-range="90days"  role="tab">90 days</button>
-          <button class="wfm-ph-tab"         data-range="48hours" role="tab">48 hours</button>
+          <button class="wfm-ph-tab${settings.defaultRange === '90days'  ? ' active' : ''}" data-range="90days"  role="tab">90 days</button>
+          <button class="wfm-ph-tab${settings.defaultRange === '48hours' ? ' active' : ''}" data-range="48hours" role="tab">48 hours</button>
           ${isArcane ? `
           <div class="wfm-ph-rank-toggle">
             <button class="wfm-ph-rank-btn${curRank === 0 ? ' active' : ''}" data-rank="0">Unranked</button>
@@ -731,7 +758,9 @@
       sendMsg({ type: 'OPEN_PANEL' });
     });
 
-    renderChart(widget, curDays90.length ? curDays90 : curHours48, curForecast);
+    const initPts = settings.defaultRange === '48hours' ? curHours48 : curDays90;
+    const initFd  = settings.defaultRange === '48hours' ? null : curForecast;
+    renderChart(widget, initPts.length ? initPts : (settings.defaultRange === '48hours' ? curDays90 : curHours48), initFd);
 
     widget.querySelectorAll('.wfm-ph-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1029,18 +1058,19 @@
   async function injectWidget(slug) {
     document.getElementById(WIDGET_ID)?.remove();
 
-    const [statsData, anchorEl, v2Data] = await Promise.all([
+    const [statsData, anchorEl, v2Data, , settings] = await Promise.all([
       fetchStats(slug).catch(() => null),
       waitForAnchor(),
       fetchItemV2(slug).catch(() => null),
       loadVaultData(),
+      loadSettings(),
     ]);
 
     if (getItemSlug() !== slug) return;
     if (!statsData || !anchorEl) return;
     if (document.getElementById(WIDGET_ID)) return;
 
-    const widget = buildWidget(slug, statsData, v2Data, null);
+    const widget = buildWidget(slug, statsData, v2Data, settings);
     if (!widget) return;
 
     if (anchorEl.id === 'wfm-itempage-zone-lg') {
@@ -1052,7 +1082,7 @@
     }
 
     // Arbitrage: solo para páginas de set
-    if (slug.endsWith('_set')) {
+    if (slug.endsWith('_set') && settings.showArbitrage) {
       loadArbitrage(slug, statsData, widget);
     }
   }

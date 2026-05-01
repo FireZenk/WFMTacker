@@ -5,6 +5,27 @@
 
 const API_BASE = 'https://api.warframe.market/v1';
 
+const DEFAULT_SETTINGS = {
+  timezone:       '',
+  defaultRange:   '90days',
+  showForecast:   true,
+  showSignal:     true,
+  showVolatility: true,
+  showLiquidity:  true,
+  showBestHour:   true,
+  showDucat:      true,
+  showVault:      true,
+  showArbitrage:  true,
+};
+
+function getSettings() {
+  return new Promise(resolve =>
+    browser.storage.sync.get('settings', d =>
+      resolve({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}) })
+    )
+  );
+}
+
 const DUCAT_SVG = `<svg class="wfm-ph-ducat-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
   <circle cx="8" cy="8" r="7" fill="#c8922a" stroke="#e8b84b" stroke-width="0.8"/>
   <circle cx="8" cy="8" r="4.5" fill="none" stroke="#e8d080" stroke-width="0.7" stroke-dasharray="1.4 1"/>
@@ -406,11 +427,16 @@ function calcLiquidity(days90) {
   return { score: finalScore, label, cls, avgVol: Math.round(avgVol * 10) / 10, activeDays, totalDays };
 }
 
-function calcBestHour(hours48) {
+function calcBestHour(hours48, timezone = '') {
   if (hours48.length < 12) return null;
+  const getHour = dt => {
+    if (!timezone) return new Date(dt).getHours();
+    const parts = new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: timezone }).formatToParts(new Date(dt));
+    return +parts.find(p => p.type === 'hour').value % 24;
+  };
   const byHour = {};
   hours48.forEach(p => {
-    const h = new Date(p.datetime).getHours();
+    const h = getHour(p.datetime);
     if (!byHour[h]) byHour[h] = [];
     byHour[h].push(p.avg_price ?? p.wa_price ?? 0);
   });
@@ -427,13 +453,13 @@ function calcBestHour(hours48) {
 
 // ── Insights HTML ─────────────────────────────────────────────────────────────
 
-function buildInsightsHTML({ signal, volatility, bestHour, ducatData, vaultStatus, liquidity }) {
+function buildInsightsHTML({ signal, volatility, bestHour, ducatData, vaultStatus, liquidity, settings = DEFAULT_SETTINGS }) {
   const volLabels  = ['🟢 Stable', '🟡 Moderate', '🔴 Volatile'];
   const volClasses = ['wfm-ph-ins-stable', 'wfm-ph-ins-moderate', 'wfm-ph-ins-volatile'];
   const sigIcons   = { buy: '🟢', sell: '🔴', neutral: '🔵' };
   const sigClasses = { buy: 'wfm-ph-ins-buy', sell: 'wfm-ph-ins-sell', neutral: 'wfm-ph-ins-neutral' };
 
-  const ducatChipHTML = (ducatData?.ducats > 0 && ducatData?.platPrice > 0) ? (() => {
+  const ducatChipHTML = (settings.showDucat && ducatData?.ducats > 0 && ducatData?.platPrice > 0) ? (() => {
     const { ducats, platPrice } = ducatData;
     const ratio = (platPrice / ducats).toFixed(1);
     const cls   = ratio >= 8 ? 'wfm-ph-ins-buy' : ratio >= 5 ? 'wfm-ph-ins-neutral' : 'wfm-ph-ins-moderate';
@@ -449,7 +475,7 @@ function buildInsightsHTML({ signal, volatility, bestHour, ducatData, vaultStatu
       </div>`;
   })() : '';
 
-  const vaultChipHTML = vaultStatus ? `
+  const vaultChipHTML = (settings.showVault && vaultStatus) ? `
     <div class="wfm-ph-insight ${vaultStatus.cls}">
       <span class="wfm-ph-ins-icon">${vaultStatus.icon}</span>
       <span><b>${vaultStatus.label}</b> <span class="wfm-ph-ins-dim" data-tooltip="${vaultStatus.tooltip}">${vaultStatus.sub}</span></span>
@@ -457,28 +483,28 @@ function buildInsightsHTML({ signal, volatility, bestHour, ducatData, vaultStatu
 
   return `
     <div class="wfm-ph-insights">
-      ${signal ? `
+      ${(settings.showSignal && signal) ? `
         <div class="wfm-ph-insight ${sigClasses[signal.type]}">
           <span class="wfm-ph-ins-icon">${sigIcons[signal.type]}</span>
           <span>${signal.text}</span>
         </div>` : ''}
-      ${volatility ? `
+      ${(settings.showVolatility && volatility) ? `
         <div class="wfm-ph-insight ${volClasses[volatility.level]}">
           <span class="wfm-ph-ins-icon">📊</span>
           <span>${volLabels[volatility.level]} <span class="wfm-ph-ins-dim" data-tooltip="Coefficient of Variation: measures price stability relative to the average. Under 10% = stable, 10–25% = moderate, above 25% = volatile">(CV ${volatility.cv}%)</span></span>
         </div>` : ''}
-      ${bestHour ? `
+      ${(settings.showBestHour && bestHour) ? `
         <div class="wfm-ph-insight wfm-ph-ins-hour">
           <span class="wfm-ph-ins-icon">🕐</span>
-          <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
+          <span>Cheapest around <b>${String(bestHour.hour).padStart(2,'0')}:00 <span data-tooltip="${settings.timezone ? `Timezone: ${settings.timezone}` : 'Your local browser time'}">(${settings.timezone || 'local time'})</span></b><span class="wfm-ph-ins-dim"> (saves ~${bestHour.diff}p vs peak)</span></span>
         </div>
         <div class="wfm-ph-insight wfm-ph-ins-sell">
           <span class="wfm-ph-ins-icon">💰</span>
-          <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="Your local browser time">(local time)</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
+          <span>Best to sell around <b>${String(bestHour.sellHour).padStart(2,'0')}:00 <span data-tooltip="${settings.timezone ? `Timezone: ${settings.timezone}` : 'Your local browser time'}">(${settings.timezone || 'local time'})</span></b><span class="wfm-ph-ins-dim"> (~${bestHour.diff}p above daily low)</span></span>
         </div>` : ''}
       ${ducatChipHTML}
       ${vaultChipHTML}
-      ${liquidity ? (() => {
+      ${(settings.showLiquidity && liquidity) ? (() => {
         const dots = Array.from({ length: 10 }, (_, i) =>
           `<span class="wfm-ph-liq-dot${i < liquidity.score ? ' wfm-ph-liq-dot-on' : ''}" style="${i < liquidity.score ? `background:var(--wfm-liq-${liquidity.label.toLowerCase()})` : ''}"></span>`
         ).join('');

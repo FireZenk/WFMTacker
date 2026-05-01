@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WFM Price History — Settings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1a1c23;
+      color: #e8eaf0;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 100vh;
+      padding: 32px 0 64px;
+    }
+
+    .wrap {
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .logo svg { color: #5ec8d0; }
+
+    .logo-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #e8eaf0;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: #8890a4;
+      margin-top: 1px;
+    }
+
+    section {
+      background: #23262f;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #5ec8d0;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field:last-child { margin-bottom: 0; }
+
+    .field-label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: #c8ccd8;
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: #8890a4;
+      margin-top: 4px;
+    }
+
+    .field-error {
+      font-size: 11px;
+      color: #e8538a;
+      margin-top: 4px;
+      min-height: 16px;
+    }
+
+    input[type="text"],
+    select {
+      background: #1a1c23;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 5px;
+      color: #e8eaf0;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 6px 10px;
+      width: 100%;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    input[type="text"]:focus,
+    select:focus {
+      border-color: #5ec8d0;
+    }
+
+    select option { background: #23262f; }
+
+    .checks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+    }
+
+    .check-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 4px 0;
+      color: #c8ccd8;
+      user-select: none;
+    }
+
+    .check-label input[type="checkbox"] {
+      accent-color: #5ec8d0;
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+
+    .check-label:hover { color: #e8eaf0; }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 4px;
+    }
+
+    .save-btn {
+      background: #5ec8d0;
+      border: none;
+      border-radius: 5px;
+      color: #1a1c23;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 20px;
+      transition: opacity 0.15s;
+    }
+
+    .save-btn:hover { opacity: 0.85; }
+
+    .saved-msg {
+      color: #5ec8d0;
+      font-size: 12px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6">
+        <polyline points="2,14 7,8 11,11 18,4"/>
+        <line x1="2" y1="18" x2="18" y2="18"/>
+      </svg>
+      <div>
+        <div class="logo-title">WFM Price History</div>
+        <div class="logo-sub">Settings</div>
+      </div>
+    </div>
+
+    <section>
+      <h2>General</h2>
+      <div class="field">
+        <label class="field-label" for="defaultRange">Default chart range</label>
+        <select id="defaultRange">
+          <option value="90days">90 days</option>
+          <option value="48hours">48 hours</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="timezone">Timezone override</label>
+        <input type="text" id="timezone" placeholder="e.g. America/New_York, Europe/Madrid">
+        <div class="field-hint">Leave empty to use browser timezone. Accepts any IANA timezone name.</div>
+        <div class="field-error" id="tz-error"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Features</h2>
+      <div class="checks">
+        <label class="check-label"><input type="checkbox" id="showForecast"> Price forecast</label>
+        <label class="check-label"><input type="checkbox" id="showSignal"> Buy/sell signal</label>
+        <label class="check-label"><input type="checkbox" id="showVolatility"> Volatility</label>
+        <label class="check-label"><input type="checkbox" id="showLiquidity"> Liquidity score</label>
+        <label class="check-label"><input type="checkbox" id="showBestHour"> Best hour to trade</label>
+        <label class="check-label"><input type="checkbox" id="showDucat"> Ducat comparison</label>
+        <label class="check-label"><input type="checkbox" id="showVault"> Vault status</label>
+        <label class="check-label"><input type="checkbox" id="showArbitrage"> Arbitrage (set vs parts)</label>
+      </div>
+    </section>
+
+    <div class="footer">
+      <button class="save-btn" id="save">Save settings</button>
+      <span class="saved-msg" id="saved" hidden>Saved ✓</span>
+    </div>
+  </div>
+
+  <script src="browser-polyfill.min.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

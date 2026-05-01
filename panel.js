@@ -64,7 +64,7 @@ function setupSearch() {
 
 async function loadItem(slug) {
   currentSlug  = slug;
-  currentRange = '90days';
+  currentRange = '90days'; // overridden by settings in renderItem
 
   const url = new URL(location.href);
   url.searchParams.set('item', slug);
@@ -79,14 +79,15 @@ async function loadItem(slug) {
   content.innerHTML = '<div class="wfm-panel-loading">Loading…</div>';
 
   try {
-    const [statsData, v2Data, vaultData] = await Promise.all([
+    const [statsData, v2Data, vaultData, settings] = await Promise.all([
       fetchStats(slug),
       fetchItemV2(slug).catch(() => null),
       loadVaultData(),
+      getSettings(),
     ]);
 
     if (currentSlug !== slug) return;
-    renderItem(slug, statsData, v2Data, vaultData);
+    renderItem(slug, statsData, v2Data, vaultData, settings);
   } catch (e) {
     if (currentSlug !== slug) return;
     content.innerHTML = `<div class="wfm-panel-error">Failed to load data for this item.</div>`;
@@ -95,7 +96,8 @@ async function loadItem(slug) {
 
 // ── Render item ───────────────────────────────────────────────────────────────
 
-async function renderItem(slug, statsData, v2Data, vaultData) {
+async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT_SETTINGS) {
+  currentRange = settings.defaultRange;
   const allDays90  = statsData.closed['90days']  || [];
   const allHours48 = statsData.closed['48hours'] || [];
   const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
@@ -160,11 +162,12 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
           <span class="wfm-ph-stat-label" data-tooltip="Number of successfully closed trades in the last 24h">Volume</span>
           <span class="wfm-ph-stat-val">${lp.volume ?? '—'}</span>
         </div>
+        ${settings.showForecast ? `
         <div class="wfm-ph-stat wfm-ph-stat-forecast">
           <span class="wfm-ph-stat-label" data-tooltip="Price prediction for 7 days from now, based on linear regression of the last 30 days">Forecast 7d</span>
           <span class="wfm-ph-stat-val">${predStr}</span>
           ${predicted7d ? `<span class="wfm-ph-stat-conf" data-tooltip="Confidence interval: actual price could differ by this amount based on historical volatility">±${fd.stdDev}p</span>` : ''}
-        </div>`;
+        </div>` : ''}`;
   }
 
   function buildPanelInsights(d90, d48) {
@@ -172,12 +175,13 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
     const lp          = active[active.length - 1] || {};
     const lp_plat     = Math.round(lp.wa_price ?? lp.avg_price ?? 0);
     return buildInsightsHTML({
-      signal:     calcSignal(d90),
-      volatility: calcVolatility(d90),
-      bestHour:   calcBestHour(d48),
+      signal:     settings.showSignal     ? calcSignal(d90)                        : null,
+      volatility: settings.showVolatility ? calcVolatility(d90)                    : null,
+      bestHour:   settings.showBestHour   ? calcBestHour(d48, settings.timezone)   : null,
       ducatData:  (isPrime && ducats > 0) ? { ducats, platPrice: lp_plat } : null,
       vaultStatus,
-      liquidity:  calcLiquidity(d90),
+      liquidity:  settings.showLiquidity  ? calcLiquidity(d90)                     : null,
+      settings,
     });
   }
 
@@ -201,8 +205,8 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
     </div>
 
     <div class="wfm-panel-tabs">
-      <button class="wfm-panel-tab active" data-range="90days">90 days</button>
-      <button class="wfm-panel-tab" data-range="48hours">48 hours</button>
+      <button class="wfm-panel-tab${settings.defaultRange === '90days'  ? ' active' : ''}" data-range="90days">90 days</button>
+      <button class="wfm-panel-tab${settings.defaultRange === '48hours' ? ' active' : ''}" data-range="48hours">48 hours</button>
       ${isArcane ? `
       <div class="wfm-ph-rank-toggle">
         <button class="wfm-ph-rank-btn${curRank === 0 ? ' active' : ''}" data-rank="0">Unranked</button>
@@ -224,7 +228,9 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
     <div id="wfm-panel-arb-zone"></div>
   `;
 
-  drawChart(curDays90.length ? curDays90 : curHours48, curForecast);
+  const initPts = settings.defaultRange === '48hours' ? curHours48 : curDays90;
+  drawChart(initPts.length ? initPts : (settings.defaultRange === '48hours' ? curDays90 : curHours48),
+            settings.defaultRange === '48hours' ? null : curForecast);
 
   content.querySelectorAll('.wfm-panel-tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -278,7 +284,7 @@ async function renderItem(slug, statsData, v2Data, vaultData) {
     drawChart(pts, fd);
   }, { passive: true });
 
-  if (slug.endsWith('_set')) {
+  if (slug.endsWith('_set') && settings.showArbitrage) {
     loadArbitrage(slug, statsData);
   }
 }
