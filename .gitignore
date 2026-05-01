@@ -17,5 +17,8 @@ dist/
 *.crx
 *.pem
 
+# Docs (local only)
+docs/
+
 # Logs
 *.log
