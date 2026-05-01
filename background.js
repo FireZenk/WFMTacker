@@ -106,8 +106,14 @@ browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     checkPrices().then(() => sendResponse({ ok: true }));
     return true;
   }
+  if (msg.type === 'OPEN_SETTINGS') {
+    browser.runtime.openOptionsPage();
+    sendResponse({ ok: true });
+    return true;
+  }
   if (msg.type === 'OPEN_PANEL') {
-    browser.tabs.create({ url: browser.runtime.getURL('panel.html') });
+    const url = browser.runtime.getURL('panel.html') + (msg.slug ? `?item=${encodeURIComponent(msg.slug)}` : '');
+    browser.tabs.create({ url });
     sendResponse({ ok: true });
     return true;
   }

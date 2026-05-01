@@ -156,6 +156,42 @@ html, body {
   font-size: 12px;
 }
 
+/* ── Nav back/fwd ────────────────────────────────────────── */
+
+.wfm-panel-nav-btns {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.wfm-panel-nav-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 5px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.wfm-panel-nav-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.wfm-panel-nav-btn:not(:disabled):hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--wfm-text);
+}
+
+.wfm-panel-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
 /* ── Header right ─────────────────────────────────────────── */
 
 .wfm-panel-header-right {
@@ -174,6 +210,26 @@ html, body {
 }
 
 .wfm-panel-header-link:hover {
+  color: var(--wfm-text);
+}
+
+.wfm-panel-settings-btn {
+  background: none;
+  border: none;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  transition: color 0.15s;
+}
+
+.wfm-panel-settings-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wfm-panel-settings-btn:hover {
   color: var(--wfm-text);
 }
 

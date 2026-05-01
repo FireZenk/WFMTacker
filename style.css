@@ -502,6 +502,23 @@
 .wfm-ph-arb-name {
   flex: 1;
   color: var(--wfm-text);
+  text-decoration: none;
+}
+
+a.wfm-ph-arb-name:hover,
+button.wfm-ph-arb-name:hover {
+  color: var(--wfm-teal);
+  text-decoration: underline;
+}
+
+button.wfm-ph-arb-name {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0;
+  text-align: left;
 }
 
 .wfm-ph-arb-qty {

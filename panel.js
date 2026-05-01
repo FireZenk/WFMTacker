@@ -20,6 +20,8 @@ function saveWatchlist(list) {
 
 let currentSlug  = null;
 let currentRange = '90days';
+let navHistory   = [];
+let navIndex     = -1;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -30,8 +32,26 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearch();
   renderSidebar();
 
+  document.getElementById('wfm-panel-open-settings')?.addEventListener('click', () => {
+    browser.runtime.openOptionsPage();
+  });
+
+  document.getElementById('wfm-nav-back')?.addEventListener('click', () => {
+    if (navIndex <= 0) return;
+    navIndex--;
+    loadItem(navHistory[navIndex]);
+    updateNavBtns();
+  });
+
+  document.getElementById('wfm-nav-fwd')?.addEventListener('click', () => {
+    if (navIndex >= navHistory.length - 1) return;
+    navIndex++;
+    loadItem(navHistory[navIndex]);
+    updateNavBtns();
+  });
+
   const slug = new URLSearchParams(location.search).get('item');
-  if (slug) loadItem(slug);
+  if (slug) navigateTo(slug);
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
@@ -48,7 +68,7 @@ function setupSearch() {
 
   function submit() {
     const slug = toSlug(input.value);
-    if (slug) loadItem(slug);
+    if (slug) navigateTo(slug);
   }
 
   input.addEventListener('keydown', e => {
@@ -58,6 +78,23 @@ function setupSearch() {
   // Search button click (the icon acts as submit)
   document.querySelector('.wfm-panel-search-icon')
     ?.addEventListener('click', submit);
+}
+
+// ── Navigation history ────────────────────────────────────────────────────────
+
+function navigateTo(slug) {
+  navHistory = navHistory.slice(0, navIndex + 1);
+  navHistory.push(slug);
+  navIndex = navHistory.length - 1;
+  loadItem(slug);
+  updateNavBtns();
+}
+
+function updateNavBtns() {
+  const back = document.getElementById('wfm-nav-back');
+  const fwd  = document.getElementById('wfm-nav-fwd');
+  if (back) back.disabled = navIndex <= 0;
+  if (fwd)  fwd.disabled  = navIndex >= navHistory.length - 1;
 }
 
 // ── Load item ─────────────────────────────────────────────────────────────────
@@ -378,7 +415,7 @@ async function renderSidebar() {
       if (e.target.closest('.wfm-panel-wl-alert-input, .wfm-panel-wl-remove')) return;
       const input = document.getElementById('wfm-panel-search');
       input.value = list[row.dataset.slug]?.name ?? '';
-      loadItem(row.dataset.slug);
+      navigateTo(row.dataset.slug);
     });
   });
 
@@ -451,6 +488,7 @@ async function loadArbitrage(slug, statsData) {
   const results = await Promise.all(
     parts.map(async p => ({
       name:   p.i18n?.en?.name ?? p.slug,
+      slug:   p.slug,
       qty:    p.qty ?? 1,
       price:  await fetchPartPrice(p.slug),
       ducats: p.ducats ?? 0,
@@ -476,7 +514,7 @@ async function loadArbitrage(slug, statsData) {
 
   const rows = results.map(p => `
     <div class="wfm-ph-arb-row">
-      <span class="wfm-ph-arb-name">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</span>
+      <button class="wfm-ph-arb-name wfm-ph-arb-name-btn" data-slug="${p.slug}">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</button>
       <span class="wfm-ph-arb-ducats">${p.ducats ? `${DUCAT_SVG}${p.ducats}` : ''}</span>
       <span class="wfm-ph-arb-price">${p.price ? `${p.price * p.qty}p` : '—'}</span>
     </div>`).join('');
@@ -497,4 +535,8 @@ async function loadArbitrage(slug, statsData) {
         <div class="wfm-ph-arb-rec">${recommendation}</div>
       </div>
     </div>`;
+
+  zone.querySelectorAll('.wfm-ph-arb-name-btn').forEach(btn => {
+    btn.addEventListener('click', () => navigateTo(btn.dataset.slug));
+  });
 }

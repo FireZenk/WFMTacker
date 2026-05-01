@@ -680,6 +680,11 @@
               median
             </button>
           </div>
+          <button class="wfm-ph-popout-btn" id="wfm-ph-open-settings" data-tooltip="Open extension settings">
+            <svg viewBox="0 0 16 16" fill="currentColor" stroke="none">
+              <path d="M6.5 1l-.35 1.3a4.8 4.8 0 00-1.08.45L3.8 2.1 2.1 3.8l.65 1.27a4.8 4.8 0 00-.45 1.08L1 6.5v3l1.3.35c.12.38.27.74.45 1.08L2.1 12.2l1.7 1.7 1.27-.65c.34.18.7.33 1.08.45L6.5 15h3l.35-1.3c.38-.12.74-.27 1.08-.45l1.27.65 1.7-1.7-.65-1.27c.18-.34.33-.7.45-1.08L15 9.5v-3l-1.3-.35a4.8 4.8 0 00-.45-1.08l.65-1.27-1.7-1.7-1.27.65a4.8 4.8 0 00-1.08-.45L9.5 1H6.5zm1.5 4a3 3 0 110 6 3 3 0 010-6zm0 1.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/>
+            </svg>
+          </button>
           <button class="wfm-ph-popout-btn" id="wfm-ph-open-dash" data-tooltip="Open full dashboard in a new tab">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
               <rect x="2" y="4" width="9" height="9" rx="1"/>
@@ -754,8 +759,12 @@
       });
     });
 
+    widget.querySelector('#wfm-ph-open-settings').addEventListener('click', () => {
+      sendMsg({ type: 'OPEN_SETTINGS' });
+    });
+
     widget.querySelector('#wfm-ph-open-dash').addEventListener('click', () => {
-      sendMsg({ type: 'OPEN_PANEL' });
+      sendMsg({ type: 'OPEN_PANEL', slug });
     });
 
     const initPts = settings.defaultRange === '48hours' ? curHours48 : curDays90;
@@ -908,6 +917,7 @@
     const results = await Promise.all(
       parts.map(async p => ({
         name:   p.i18n?.en?.name ?? p.slug,
+        slug:   p.slug,
         qty:    p.qty ?? 1,
         price:  await fetchPartPrice(p.slug),
         ducats: p.ducats ?? 0,
@@ -935,7 +945,7 @@
 
     const rows = results.map(p => `
       <div class="wfm-ph-arb-row">
-        <span class="wfm-ph-arb-name">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</span>
+        <a class="wfm-ph-arb-name" href="/items/${p.slug}">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</a>
         <span class="wfm-ph-arb-ducats">${p.ducats ? `${DUCAT_SVG}${p.ducats}` : ''}</span>
         <span class="wfm-ph-arb-price">${p.price ? `${p.price * p.qty}p` : '—'}</span>
       </div>`).join('');
