@@ -1,10 +1,12 @@
-WFM Price History enhances warframe.market by embedding a full price analysis widget directly into each item page — no popups, no tab switching.
+WFM Price History enhances warframe.market with a full price analysis widget embedded directly into every item page — plus a standalone dashboard accessible from the extension icon. No popups, no tab switching, no clutter.
 
-FEATURES
+────────────────────────────────────────
+EMBEDDED WIDGET (on every item page)
+────────────────────────────────────────
 
-📈 Price history chart — 90-day and 48-hour SVG chart with min/max band and daily volume bars
+📈 Price history chart — 90-day and 48-hour SVG chart with min/max band, daily volume bars and interactive hover tooltips showing exact price, date and volume
 
-🔮 7-day forecast — linear regression projection with confidence interval
+🔮 7-day forecast — linear regression projection with confidence interval (±Xp)
 
 🟢 Buy / Sell signal — current price vs 90-day average with percentage deviation
 
@@ -12,18 +14,46 @@ FEATURES
 
 💧 Liquidity score — 1–10 rating based on average daily volume and trading consistency (1 = very hard to sell, 10 = trades daily)
 
-🕐 Best hour to buy — cheapest hour derived from 48h data (local time)
-
-💰 Best hour to sell — peak price hour derived from 48h data (local time)
-
-↔️ Bid-ask spread — gap between the lowest active sell order and highest active buy order among online traders
-
-📋 Copy to clipboard — one-click copy of average or median price for trade chat
-
-⚖️ Set vs Parts arbitrage — compares set price against buying parts individually (Prime sets)
+🕐 Best hour to buy / sell — cheapest and peak price hours derived from 48h data, with optional timezone override
 
 🪙 Ducat comparison — platinum-per-ducat ratio to decide whether to sell or trade for ducats (Prime items)
 
-⭐ Watchlist & Price Alerts — star any item, set price thresholds, get desktop notifications when prices cross them
+⭐ Vault status — shows whether a Prime item is currently vaulted or unvaulted
 
-All data comes from the official warframe.market public API. No personal data is collected or stored externally.
+⚖️ Set vs Parts arbitrage — compares set price against buying parts individually, with clickable part names to jump to each part page (Prime sets)
+
+📋 Copy to clipboard — one-click copy of average or median price for trade chat
+
+👁 Watchlist & Price Alerts — star any item, set above/below price thresholds, get desktop notifications when prices cross them
+
+🎯 Arcane rank toggle — separate Unranked vs R5 Maxed price history, chart and forecast for arcane enhancements (rank 0 ≈ 5p vs rank 5 ≈ 80p for Arcane Energize)
+
+────────────────────────────────────────
+FULL-SCREEN DASHBOARD (extension icon)
+────────────────────────────────────────
+
+Click the extension icon to open a standalone dashboard tab with:
+
+🔍 Item search — type any item name and load its full price analysis
+📊 All widget features in a wider, more readable layout
+⬅️ ➡️ Back / forward navigation history — jump between items and go back with one click
+⭐ Watchlist sidebar — all watched items with current prices and alert status
+🎯 Arcane rank toggle — same Unranked / R5 Maxed split as the widget
+
+────────────────────────────────────────
+SETTINGS
+────────────────────────────────────────
+
+Right-click the extension icon → Options (or click the ⚙ gear inside the widget or dashboard) to configure:
+
+• Default chart range (90 days / 48 hours)
+• Timezone override for best-hour calculation
+• Toggle individual features on/off: forecast, buy/sell signal, volatility, liquidity, best hour, ducat comparison, vault status, arbitrage section
+
+Settings sync across devices via browser storage.
+
+────────────────────────────────────────
+PRIVACY
+────────────────────────────────────────
+
+All data comes from the official warframe.market public API. No personal data is collected, transmitted or stored externally. Watchlist and settings are stored locally in your browser.

@@ -20,11 +20,15 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate release notes
-        uses: orhun/git-cliff-action@v3
-        id: cliff
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
         with:
-          args: --latest --strip header
+          tool: git-cliff
+
+      - name: Generate release notes
+        id: cliff
+        run: |
+          { echo 'content<<EOF'; git-cliff --latest --strip header; echo 'EOF'; } >> "$GITHUB_OUTPUT"
         env:
           GITHUB_REPO: ${{ github.repository }}
 
@@ -32,6 +36,8 @@ jobs:
         run: |
           mkdir -p dist/chrome
           cp background.js content.js style.css browser-polyfill.min.js \
+             panel.html panel.js panel.css shared.js \
+             options.html options.js vault-data.json \
              icon.png icon48.png icon16.png dist/chrome/
           jq 'del(.browser_specific_settings, .data_collection_permissions)
               | .background = {"service_worker": .background.service_worker}
@@ -44,6 +50,8 @@ jobs:
         run: |
           mkdir -p dist/firefox
           cp background.js content.js style.css browser-polyfill.min.js \
+             panel.html panel.js panel.css shared.js \
+             options.html options.js vault-data.json \
              icon.png icon48.png icon16.png dist/firefox/
           jq '.version = "${{ steps.version.outputs.VERSION }}"' \
             manifest.json > dist/firefox/manifest.json
