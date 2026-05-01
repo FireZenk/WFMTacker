@@ -18,7 +18,7 @@ dist/
 *.pem
 
 # Docs (local only)
-docs/
+docs/*.md
 
 # Logs
 *.log
