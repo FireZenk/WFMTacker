@@ -1,0 +1,17 @@
+{
+  "name": "wfm-price-history",
+  "version": "1.4.1",
+  "private": true,
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFiles": [
+      "./tests/setup.js"
+    ]
+  }
+}

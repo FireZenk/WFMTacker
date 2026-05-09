@@ -8,6 +8,7 @@
 - Route orders fetch through background script
 - Use Promise-based pattern for async background handlers
 - Fetch orders without custom headers to avoid CORS preflight
+- Replace git-cliff Docker action with binary install to fix Debian Buster EOL
 
 ### Documentation
 
