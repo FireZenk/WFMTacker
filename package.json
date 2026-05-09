@@ -3,7 +3,8 @@
   "version": "1.4.1",
   "private": true,
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "jest": "^29.0.0"

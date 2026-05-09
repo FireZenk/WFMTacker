@@ -27,9 +27,12 @@ esac
 NEW="$MAJOR.$MINOR.$PATCH"
 
 jq ".version = \"$NEW\"" manifest.json > manifest.tmp.json && mv manifest.tmp.json manifest.json
+if [ -f package.json ]; then
+  jq ".version = \"$NEW\"" package.json > package.tmp.json && mv package.tmp.json package.json
+fi
 echo "Bumped $CURRENT → $NEW"
 
-git add manifest.json
+git add manifest.json package.json
 
 # Update CHANGELOG.md if git-cliff is available
 if command -v git-cliff &>/dev/null; then
