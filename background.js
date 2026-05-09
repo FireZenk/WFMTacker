@@ -38,6 +38,20 @@ function saveWatchlist(watchlist) {
 
 // ── Price check ───────────────────────────────────────────────────────────────
 
+// Returns 'below', 'above', or null. Only fires when price crosses the threshold
+// (was on the safe side last check, now on the alert side) — prevents repeat
+// notifications while price stays on the same side of the threshold.
+function shouldNotify(prevPrice, newPrice, alert) {
+  if (!alert) return null;
+  if (alert.below && newPrice <= alert.below && (!prevPrice || prevPrice > alert.below)) {
+    return 'below';
+  }
+  if (alert.above && newPrice >= alert.above && (!prevPrice || prevPrice < alert.above)) {
+    return 'above';
+  }
+  return null;
+}
+
 async function fetchCurrentPrice(slug) {
   try {
     const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
@@ -64,17 +78,11 @@ async function checkPrices() {
     const price = await fetchCurrentPrice(slug);
     if (!price) return;
 
+    const direction = shouldNotify(item.lastPrice, price, item.alert);
+    if (direction) notify(slug, item.name, price, direction, item.alert[direction]);
+
     updated[slug] = { ...item, lastPrice: price, lastChecked: Date.now() };
     changed = true;
-
-    const { alert } = item;
-    if (!alert) return;
-
-    if (alert.below && price <= alert.below) {
-      notify(slug, item.name, price, 'below', alert.below);
-    } else if (alert.above && price >= alert.above) {
-      notify(slug, item.name, price, 'above', alert.above);
-    }
   }));
 
   if (changed) await saveWatchlist(updated);
@@ -90,6 +98,8 @@ function notify(slug, name, price, direction, threshold) {
       : `Price rose to ${price}p — above your alert of ${threshold}p`,
   });
 }
+
+if (typeof module !== 'undefined') module.exports = { shouldNotify };
 
 // ── Messages from content script ──────────────────────────────────────────────
 
