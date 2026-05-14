@@ -8,7 +8,16 @@ global.browser = {
   },
   action:  { onClicked: { addListener: jest.fn() } },
   alarms:  { create: jest.fn(), onAlarm: { addListener: jest.fn() } },
-  storage: { local: { get: jest.fn(), set: jest.fn() } },
+  storage: {
+    local: {
+      get: jest.fn(() => Promise.resolve({})),
+      set: jest.fn(() => Promise.resolve()),
+    },
+    sync: {
+      get: jest.fn(() => Promise.resolve({})),
+      set: jest.fn(() => Promise.resolve()),
+    },
+  },
   notifications: { create: jest.fn() },
   tabs:    { create: jest.fn() },
 };
