@@ -1,4 +1,24 @@
 # Changelog
+## [1.4.2] - 2026-05-14
+
+### Bug Fixes
+
+- Replace callback storage API with Promise chain
+
+### Test
+
+- Add storage Promise regression tests
+
+## [1.4.1] - 2026-05-09
+
+### Bug Fixes
+
+- Use threshold crossing detection to prevent repeat notifications
+
+### Test
+
+- Add Jest suite for shouldNotify crossing logic
+
 ## [1.4.0] - 2026-05-01
 
 ### Bug Fixes
