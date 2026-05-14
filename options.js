@@ -14,10 +14,8 @@ const DEFAULT_SETTINGS = {
 const CHECKBOXES = ['showForecast','showSignal','showVolatility','showLiquidity','showBestHour','showDucat','showVault','showArbitrage'];
 
 function getSettings() {
-  return new Promise(resolve =>
-    browser.storage.sync.get('settings', d =>
-      resolve({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}) })
-    )
+  return browser.storage.sync.get('settings').then(d =>
+    ({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}) })
   );
 }
 
@@ -45,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     newSettings.timezone     = tz;
     CHECKBOXES.forEach(key => { newSettings[key] = document.getElementById(key).checked; });
 
-    await new Promise(resolve => browser.storage.sync.set({ settings: newSettings }, resolve));
+    await browser.storage.sync.set({ settings: newSettings });
 
     const saved = document.getElementById('saved');
     saved.hidden = false;

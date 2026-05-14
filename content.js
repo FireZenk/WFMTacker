@@ -25,10 +25,8 @@
   };
 
   function loadSettings() {
-    return new Promise(resolve =>
-      browser.storage.sync.get('settings', d =>
-        resolve({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}) })
-      )
+    return browser.storage.sync.get('settings').then(d =>
+      ({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}) })
     );
   }
 

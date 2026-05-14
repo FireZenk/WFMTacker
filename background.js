@@ -27,13 +27,11 @@ browser.alarms.onAlarm.addListener(alarm => {
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
 function getWatchlist() {
-  return new Promise(resolve =>
-    browser.storage.local.get('watchlist', d => resolve(d.watchlist ?? {}))
-  );
+  return browser.storage.local.get('watchlist').then(d => d.watchlist ?? {});
 }
 
 function saveWatchlist(watchlist) {
-  return new Promise(resolve => browser.storage.local.set({ watchlist }, resolve));
+  return browser.storage.local.set({ watchlist });
 }
 
 // ── Price check ───────────────────────────────────────────────────────────────
@@ -99,7 +97,7 @@ function notify(slug, name, price, direction, threshold) {
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { shouldNotify };
+if (typeof module !== 'undefined') module.exports = { shouldNotify, getWatchlist, saveWatchlist };
 
 // ── Messages from content script ──────────────────────────────────────────────
 
