@@ -116,15 +116,16 @@ async function loadItem(slug) {
   content.innerHTML = '<div class="wfm-panel-loading">Loading…</div>';
 
   try {
-    const [statsData, v2Data, vaultData, settings] = await Promise.all([
+    const [statsData, v2Data, vaultData, settings, watchlist] = await Promise.all([
       fetchStats(slug),
       fetchItemV2(slug).catch(() => null),
       loadVaultData(),
       getSettings(),
+      getWatchlist(),
     ]);
 
     if (currentSlug !== slug) return;
-    renderItem(slug, statsData, v2Data, vaultData, settings);
+    renderItem(slug, statsData, v2Data, vaultData, settings, watchlist[slug]?.rank ?? null);
   } catch (e) {
     if (currentSlug !== slug) return;
     content.innerHTML = `<div class="wfm-panel-error">Failed to load data for this item.</div>`;
@@ -133,14 +134,14 @@ async function loadItem(slug) {
 
 // ── Render item ───────────────────────────────────────────────────────────────
 
-async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT_SETTINGS) {
+async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT_SETTINGS, savedRank = null) {
   currentRange = settings.defaultRange;
   const allDays90  = statsData.closed['90days']  || [];
   const allHours48 = statsData.closed['48hours'] || [];
   const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
   const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
   const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
-  let   curRank      = (rankSplit90?.r5?.length) ? 5 : 0;
+  let   curRank      = savedRank !== null ? savedRank : ((rankSplit90?.r5?.length) ? 5 : 0);
 
   let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
   let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
@@ -282,10 +283,13 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
 
   if (isArcane) {
     content.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         curRank = +btn.dataset.rank;
         content.querySelectorAll('.wfm-ph-rank-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+
+        const list = await getWatchlist();
+        if (list[slug]) { list[slug].rank = curRank; await saveWatchlist(list); }
 
         curDays90   = (rankSplit90[`r${curRank}`] || []).slice(-90);
         curHours48  = (rankSplit48?.[`r${curRank}`] || []).slice(-48);
@@ -350,6 +354,7 @@ async function toggleWatch(slug, name, price) {
       lastPrice: price,
       lastChecked: Date.now(),
       alert: { below: null, above: null },
+      rank: null,
     };
   }
   await saveWatchlist(list);
