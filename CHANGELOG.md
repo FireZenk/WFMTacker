@@ -1,4 +1,14 @@
 # Changelog
+## [1.4.3] - 2026-05-15
+
+### Bug Fixes
+
+- Persist arcane rank selection across refresh
+
+### Test
+
+- Add regression tests for arcane rank persistence
+
 ## [1.4.2] - 2026-05-14
 
 ### Bug Fixes
