@@ -50,7 +50,7 @@ function shouldNotify(prevPrice, newPrice, alert) {
   return null;
 }
 
-async function fetchCurrentPrice(slug) {
+async function fetchCurrentPrice(slug, rank = null) {
   try {
     const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
@@ -58,6 +58,23 @@ async function fetchCurrentPrice(slug) {
     if (!res.ok) return null;
     const json = await res.json();
     const days = json.payload.statistics_closed['90days'] ?? [];
+
+    if (rank !== null) {
+      const filtered = days.filter(d => d.mod_rank === rank);
+      const last = filtered[filtered.length - 1];
+      return last ? Math.round(last.wa_price ?? last.avg_price ?? 0) : null;
+    }
+
+    // rank=null: if data is rank-split, default to R5 (matches panel default)
+    const hasRankSplit = days.some(d => d.mod_rank != null);
+    if (hasRankSplit) {
+      const r5 = days.filter(d => d.mod_rank === 5);
+      if (r5.length) {
+        const last = r5[r5.length - 1];
+        return last ? Math.round(last.wa_price ?? last.avg_price ?? 0) : null;
+      }
+    }
+
     const last = days[days.length - 1];
     return last ? Math.round(last.wa_price ?? last.avg_price ?? 0) : null;
   } catch { return null; }
@@ -73,7 +90,7 @@ async function checkPrices() {
 
   await Promise.all(slugs.map(async slug => {
     const item  = list[slug];
-    const price = await fetchCurrentPrice(slug);
+    const price = await fetchCurrentPrice(slug, item.rank ?? null);
     if (!price) return;
 
     const direction = shouldNotify(item.lastPrice, price, item.alert);
@@ -97,7 +114,7 @@ function notify(slug, name, price, direction, threshold) {
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { shouldNotify, getWatchlist, saveWatchlist };
+if (typeof module !== 'undefined') module.exports = { shouldNotify, getWatchlist, saveWatchlist, fetchCurrentPrice };
 
 // ── Messages from content script ──────────────────────────────────────────────
 

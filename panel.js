@@ -141,7 +141,7 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
   const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
   const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
-  let   curRank      = savedRank !== null ? savedRank : ((rankSplit90?.r5?.length) ? 5 : 0);
+  let   curRank      = resolveRank(savedRank, rankSplit90);
 
   let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
   let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
@@ -306,7 +306,9 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   }
 
   content.querySelector('#wfm-panel-watch-btn').addEventListener('click', async () => {
-    await toggleWatch(slug, itemName, platPrice);
+    const liveSet = curDays90.length ? curDays90 : curHours48;
+    const livePrice = Math.round((liveSet.at(-1) ?? {}).wa_price ?? (liveSet.at(-1) ?? {}).avg_price ?? 0);
+    await toggleWatch(slug, itemName, livePrice, isArcane ? curRank : null);
     renderSidebar();
     const btn = content.querySelector('#wfm-panel-watch-btn');
     const list = await getWatchlist();
@@ -341,7 +343,7 @@ function drawChart(points, forecastData = null) {
 
 // ── Watchlist toggle ──────────────────────────────────────────────────────────
 
-async function toggleWatch(slug, name, price) {
+async function toggleWatch(slug, name, price, rank = null) {
   const list = await getWatchlist();
   if (list[slug]) {
     delete list[slug];
@@ -354,7 +356,7 @@ async function toggleWatch(slug, name, price) {
       lastPrice: price,
       lastChecked: Date.now(),
       alert: { below: null, above: null },
-      rank: null,
+      rank,
     };
   }
   await saveWatchlist(list);

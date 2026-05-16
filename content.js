@@ -45,12 +45,12 @@
   const getWatchlist  = ()       => sendMsg({ type: 'GET_WATCHLIST' });
   const saveWatchlist = list     => sendMsg({ type: 'SAVE_WATCHLIST', watchlist: list });
 
-  async function toggleWatch(slug, name, price) {
+  async function toggleWatch(slug, name, price, rank = null) {
     const list = await getWatchlist();
     if (list[slug]) {
       delete list[slug];
     } else {
-      list[slug] = { name, slug, addedAt: Date.now(), priceAtAdd: price, lastPrice: price, lastChecked: Date.now(), alert: { below: null, above: null } };
+      list[slug] = { name, slug, addedAt: Date.now(), priceAtAdd: price, lastPrice: price, lastChecked: Date.now(), alert: { below: null, above: null }, rank };
     }
     await saveWatchlist(list);
     return list;
@@ -497,21 +497,14 @@
 
   // ── Widget ───────────────────────────────────────────────────────────────────
 
-  function splitByRank(days) {
-    if (!days.some(e => e.mod_rank != null)) return null;
-    return {
-      r0: days.filter(e => e.mod_rank === 0),
-      r5: days.filter(e => e.mod_rank === 5),
-    };
-  }
 
-  function buildWidget(slug, statsData, v2Data = null, settings = DEFAULT_SETTINGS) {
+  function buildWidget(slug, statsData, v2Data = null, settings = DEFAULT_SETTINGS, savedRank = null) {
     const allDays90  = statsData.closed['90days']  || [];
     const allHours48 = statsData.closed['48hours'] || [];
     const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
     const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
     const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
-    let   curRank      = (rankSplit90?.r5?.length) ? 5 : 0;
+    let   curRank      = resolveRank(savedRank, rankSplit90);
 
     let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
     let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
@@ -729,7 +722,9 @@
       if (list[slug]) watchBtn.classList.add('wfm-ph-watch-active');
     });
     watchBtn.addEventListener('click', async () => {
-      const list = await toggleWatch(slug, itemName, currentPrice);
+      const liveSet = curDays90.length ? curDays90 : curHours48;
+      const livePrice = Math.round((liveSet.at(-1) ?? {}).wa_price ?? (liveSet.at(-1) ?? {}).avg_price ?? 0);
+      const list = await toggleWatch(slug, itemName, livePrice, isArcane ? curRank : null);
       watchBtn.classList.toggle('wfm-ph-watch-active', !!list[slug]);
       renderWatchlistPanel();
     });
@@ -781,8 +776,10 @@
 
     if (isArcane) {
       widget.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           curRank = +btn.dataset.rank;
+          const list = await getWatchlist();
+          if (list[slug]) { list[slug].rank = curRank; await saveWatchlist(list); }
           widget.querySelectorAll('.wfm-ph-rank-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
 
@@ -1066,19 +1063,20 @@
   async function injectWidget(slug) {
     document.getElementById(WIDGET_ID)?.remove();
 
-    const [statsData, anchorEl, v2Data, , settings] = await Promise.all([
+    const [statsData, anchorEl, v2Data, , settings, watchlist] = await Promise.all([
       fetchStats(slug).catch(() => null),
       waitForAnchor(),
       fetchItemV2(slug).catch(() => null),
       loadVaultData(),
       loadSettings(),
+      getWatchlist(),
     ]);
 
     if (getItemSlug() !== slug) return;
     if (!statsData || !anchorEl) return;
     if (document.getElementById(WIDGET_ID)) return;
 
-    const widget = buildWidget(slug, statsData, v2Data, settings);
+    const widget = buildWidget(slug, statsData, v2Data, settings, watchlist[slug]?.rank ?? null);
     if (!widget) return;
 
     if (anchorEl.id === 'wfm-itempage-zone-lg') {
