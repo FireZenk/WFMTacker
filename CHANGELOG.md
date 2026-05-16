@@ -1,4 +1,10 @@
 # Changelog
+## [1.4.4] - 2026-05-16
+
+### Bug Fixes
+
+- Persist and restore arcane rank correctly in embedded and panel
+
 ## [1.4.3] - 2026-05-15
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
   "name": "wfm-price-history",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "private": true,
   "scripts": {
     "test": "jest",
