@@ -1,4 +1,10 @@
 # Changelog
+## [1.4.5] - 2026-06-22
+
+### Features
+
+- Personal notes, CSV export, and recently viewed items
+
 ## [1.4.4] - 2026-05-16
 
 ### Bug Fixes
