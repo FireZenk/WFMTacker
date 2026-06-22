@@ -39,6 +39,9 @@ Click the extension icon to open a standalone dashboard tab with:
 ⬅️ ➡️ Back / forward navigation history — jump between items and go back with one click
 ⭐ Watchlist sidebar — all watched items with current prices and alert status
 🎯 Arcane rank toggle — same Unranked / R5 Maxed split as the widget
+📝 Personal notes — free-text annotation per watched item, auto-saved as you type
+↓ CSV export — download current item 90-day price history or full watchlist as CSV for external analysis
+🕐 Recently viewed — quick-access list of last 10 viewed items in the sidebar
 
 ────────────────────────────────────────
 SETTINGS
