@@ -35,7 +35,7 @@ jobs:
       - name: Build Chrome ZIP
         run: |
           mkdir -p dist/chrome
-          cp background.js content.js style.css browser-polyfill.min.js \
+          cp background.js content.js rank-utils.js style.css browser-polyfill.min.js \
              panel.html panel.js panel.css shared.js \
              options.html options.js vault-data.json \
              icon.png icon48.png icon16.png dist/chrome/
@@ -49,7 +49,7 @@ jobs:
       - name: Build Firefox ZIP
         run: |
           mkdir -p dist/firefox
-          cp background.js content.js style.css browser-polyfill.min.js \
+          cp background.js content.js rank-utils.js style.css browser-polyfill.min.js \
              panel.html panel.js panel.css shared.js \
              options.html options.js vault-data.json \
              icon.png icon48.png icon16.png dist/firefox/
