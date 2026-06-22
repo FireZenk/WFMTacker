@@ -180,7 +180,8 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   const isWatched = !!watchlist[slug];
   const itemName  = slugToName(slug);
 
-  trackRecentlyViewed(slug, itemName);
+  await trackRecentlyViewed(slug, itemName);
+  renderSidebar();
 
   function buildPanelStatsInner(d90, d48, fd) {
     const active      = d90.length ? d90 : d48;
