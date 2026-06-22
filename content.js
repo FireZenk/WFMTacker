@@ -50,7 +50,7 @@
     if (list[slug]) {
       delete list[slug];
     } else {
-      list[slug] = { name, slug, addedAt: Date.now(), priceAtAdd: price, lastPrice: price, lastChecked: Date.now(), alert: { below: null, above: null }, rank };
+      list[slug] = { name, slug, addedAt: Date.now(), priceAtAdd: price, lastPrice: price, lastChecked: Date.now(), alert: { below: null, above: null }, rank, note: '' };
     }
     await saveWatchlist(list);
     return list;

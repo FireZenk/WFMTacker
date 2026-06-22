@@ -670,3 +670,103 @@ html, body {
 [data-tooltip]:hover::before {
   opacity: 1;
 }
+
+/* ── Item notes ───────────────────────────────────────────── */
+
+.wfm-panel-notes {
+  margin: 12px 0 4px;
+}
+
+.wfm-panel-notes-input {
+  width: 100%;
+  min-height: 64px;
+  background: var(--wfm-surface);
+  border: 1px solid var(--wfm-border);
+  border-radius: 6px;
+  color: var(--wfm-text);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.wfm-panel-notes-input::placeholder { color: var(--wfm-text-muted); }
+.wfm-panel-notes-input:focus {
+  outline: none;
+  border-color: var(--wfm-teal);
+}
+
+/* ── Export buttons ───────────────────────────────────────── */
+
+.wfm-panel-export-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-radius: 5px;
+  color: var(--wfm-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.wfm-panel-export-btn:hover {
+  border-color: var(--wfm-teal);
+  color: var(--wfm-teal);
+}
+
+.wfm-panel-wl-export {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-radius: 5px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wfm-panel-wl-export:hover {
+  border-color: var(--wfm-teal);
+  color: var(--wfm-teal);
+}
+
+/* ── Recently viewed ──────────────────────────────────────── */
+
+.wfm-panel-recent-section {
+  border-top: 1px solid var(--wfm-border);
+  padding: 8px 0 4px;
+}
+
+.wfm-panel-recent-header {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--wfm-text-muted);
+  padding: 0 12px 4px;
+}
+
+.wfm-panel-recent-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.wfm-panel-recent-row {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s, background 0.15s;
+}
+
+.wfm-panel-recent-row:hover,
+.wfm-panel-recent-row.wfm-panel-wl-active {
+  color: var(--wfm-text);
+  background: rgba(255,255,255,0.04);
+}

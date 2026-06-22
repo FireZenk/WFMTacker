@@ -16,6 +16,17 @@ function saveWatchlist(list) {
   return browser.storage.local.set({ watchlist: list });
 }
 
+function getRecentlyViewed() {
+  return browser.storage.local.get('recentlyViewed').then(r => r.recentlyViewed ?? []);
+}
+
+async function trackRecentlyViewed(slug, name) {
+  const list = await getRecentlyViewed();
+  const filtered = list.filter(e => e.slug !== slug);
+  filtered.unshift({ slug, name });
+  await browser.storage.local.set({ recentlyViewed: filtered.slice(0, 10) });
+}
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let currentSlug  = null;
@@ -169,6 +180,8 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   const isWatched = !!watchlist[slug];
   const itemName  = slugToName(slug);
 
+  trackRecentlyViewed(slug, itemName);
+
   function buildPanelStatsInner(d90, d48, fd) {
     const active      = d90.length ? d90 : d48;
     const lp          = active[active.length - 1] || {};
@@ -235,6 +248,7 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
           </svg>
           ${isWatched ? 'Watching' : 'Watch'}
         </button>
+        <button class="wfm-panel-export-btn" id="wfm-panel-export-btn" data-tooltip="Export price history as CSV">↓ CSV</button>
       </div>
 
       <div class="wfm-ph-stats-row" id="wfm-panel-stats-row">
@@ -264,6 +278,8 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
     <div id="wfm-panel-insights-zone">${buildPanelInsights(curDays90, curHours48)}</div>
 
     <div id="wfm-panel-arb-zone"></div>
+
+    <div id="wfm-panel-notes-zone"></div>
   `;
 
   const initPts = settings.defaultRange === '48hours' ? curHours48 : curDays90;
@@ -319,7 +335,35 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
         <polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/>
       </svg>
       ${watched ? 'Watching' : 'Watch'}`;
+    renderNotesZone(watched, list[slug]?.note ?? '');
   });
+
+  content.querySelector('#wfm-panel-export-btn').addEventListener('click', () => {
+    const rows = [['date', 'avg_price', 'wa_price', 'min_price', 'max_price', 'volume', 'mod_rank']];
+    const allDays = statsData.closed['90days'] || [];
+    allDays.forEach(d => rows.push([
+      d.datetime ?? '', d.avg_price ?? '', d.wa_price ?? '',
+      d.min_price ?? '', d.max_price ?? '', d.volume ?? '', d.mod_rank ?? '',
+    ]));
+    downloadCSV(rows, `wfm-${slug}-90d.csv`);
+  });
+
+  const renderNotesZone = (watched, note = '') => {
+    const zone = document.getElementById('wfm-panel-notes-zone');
+    if (!zone) return;
+    if (!watched) { zone.innerHTML = ''; return; }
+    zone.innerHTML = `
+      <div class="wfm-panel-notes">
+        <textarea class="wfm-panel-notes-input" placeholder="Add a note…" maxlength="500">${esc(note)}</textarea>
+      </div>`;
+    const ta = zone.querySelector('.wfm-panel-notes-input');
+    ta.addEventListener('input', debounce(async () => {
+      const list = await getWatchlist();
+      if (list[slug]) { list[slug].note = ta.value; await saveWatchlist(list); }
+    }, 500));
+  };
+
+  renderNotesZone(isWatched, watchlist[slug]?.note ?? '');
 
   window.addEventListener('resize', () => {
     const pts = currentRange === '90days' ? curDays90 : curHours48;
@@ -330,6 +374,30 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   if (slug.endsWith('_set') && settings.showArbitrage) {
     loadArbitrage(slug, statsData);
   }
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: filename,
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function exportWatchlistCSV() {
+  const list = await getWatchlist();
+  const rows = [['name', 'slug', 'last_price', 'price_at_add', 'added_at', 'alert_below', 'alert_above', 'rank', 'note']];
+  Object.values(list).forEach(item => rows.push([
+    item.name, item.slug, item.lastPrice ?? '', item.priceAtAdd ?? '',
+    item.addedAt ? new Date(item.addedAt).toISOString().slice(0, 10) : '',
+    item.alert?.below ?? '', item.alert?.above ?? '',
+    item.rank ?? '', item.note ?? '',
+  ]));
+  downloadCSV(rows, `wfm-watchlist-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 function drawChart(points, forecastData = null) {
@@ -357,6 +425,7 @@ async function toggleWatch(slug, name, price, rank = null) {
       lastChecked: Date.now(),
       alert: { below: null, above: null },
       rank,
+      note: '',
     };
   }
   await saveWatchlist(list);
@@ -366,21 +435,41 @@ async function toggleWatch(slug, name, price, rank = null) {
 // ── Sidebar / Watchlist ───────────────────────────────────────────────────────
 
 async function renderSidebar() {
-  const list  = await getWatchlist();
-  const slugs = Object.keys(list);
-  const body  = document.getElementById('wfm-panel-wl-body');
-  const count = document.getElementById('wfm-panel-wl-count');
-  const refreshBtn = document.getElementById('wfm-panel-wl-refresh');
+  const list    = await getWatchlist();
+  const slugs   = Object.keys(list);
+  const body    = document.getElementById('wfm-panel-wl-body');
+  const count   = document.getElementById('wfm-panel-wl-count');
+  const refreshBtn    = document.getElementById('wfm-panel-wl-refresh');
+  const exportBtn     = document.getElementById('wfm-panel-wl-export');
+  const recentSection = document.getElementById('wfm-panel-recent-section');
+  const recentBody    = document.getElementById('wfm-panel-recent-body');
+
+  const recent = await getRecentlyViewed();
+  if (recent.length) {
+    recentSection.style.display = '';
+    recentBody.innerHTML = recent.map(e => `
+      <div class="wfm-panel-recent-row ${e.slug === currentSlug ? 'wfm-panel-wl-active' : ''}" data-slug="${e.slug}">
+        ${esc(e.name)}
+      </div>`).join('');
+    recentBody.querySelectorAll('.wfm-panel-recent-row').forEach(row =>
+      row.addEventListener('click', () => navigateTo(row.dataset.slug))
+    );
+  } else {
+    recentSection.style.display = 'none';
+  }
 
   count.textContent = slugs.length;
 
   if (!slugs.length) {
     body.innerHTML = '<div class="wfm-panel-wl-empty">No items yet.<br>Click Watch on any item to add it.</div>';
     refreshBtn.style.display = 'none';
+    exportBtn.style.display  = 'none';
     return;
   }
 
   refreshBtn.style.display = '';
+  exportBtn.style.display  = '';
+  exportBtn.onclick = () => exportWatchlistCSV();
 
   body.innerHTML = slugs.map(slug => {
     const item    = list[slug];
