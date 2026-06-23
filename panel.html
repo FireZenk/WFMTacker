@@ -55,12 +55,23 @@
     <div class="wfm-panel-layout">
 
       <aside id="wfm-panel-sidebar" class="wfm-panel-sidebar">
-        <div class="wfm-panel-sidebar-header">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
-            <polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/>
-          </svg>
-          Watchlist
-          <span id="wfm-panel-wl-count" class="wfm-panel-wl-count">0</span>
+        <div class="wfm-panel-sidebar-tabs">
+          <button class="wfm-panel-sidebar-tab active" id="wfm-tab-watchlist">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/>
+            </svg>
+            Watchlist
+            <span id="wfm-panel-wl-count" class="wfm-panel-wl-count">0</span>
+          </button>
+          <button class="wfm-panel-sidebar-tab" id="wfm-tab-alerts">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M8 2a5 5 0 00-5 5c0 2.5-.8 3.5-1.5 4h13c-.7-.5-1.5-1.5-1.5-4a5 5 0 00-5-5z"/>
+              <line x1="8" y1="14" x2="8" y2="15"/>
+              <line x1="6.5" y1="14.5" x2="9.5" y2="14.5"/>
+            </svg>
+            Alerts
+            <span id="wfm-panel-alert-count" class="wfm-panel-wl-count" style="display:none">0</span>
+          </button>
         </div>
         <div id="wfm-panel-wl-body" class="wfm-panel-wl-body">
           <div class="wfm-panel-wl-empty">Loading…</div>
@@ -68,6 +79,12 @@
         <div class="wfm-panel-sidebar-footer">
           <button id="wfm-panel-wl-refresh" class="wfm-panel-wl-refresh" style="display:none">↻ Refresh prices</button>
           <button id="wfm-panel-wl-export" class="wfm-panel-wl-export" style="display:none" data-tooltip="Export watchlist as CSV">↓ Export</button>
+          <button id="wfm-panel-wl-select" class="wfm-panel-wl-select" style="display:none">Select</button>
+        </div>
+        <div id="wfm-panel-select-bar" class="wfm-panel-select-bar" style="display:none">
+          <button id="wfm-panel-select-all" class="wfm-panel-select-all">All</button>
+          <button id="wfm-panel-remove-selected" class="wfm-panel-remove-selected" disabled>Remove (0)</button>
+          <button id="wfm-panel-select-cancel" class="wfm-panel-select-cancel">Cancel</button>
         </div>
 
         <div id="wfm-panel-recent-section" class="wfm-panel-recent-section" style="display:none">

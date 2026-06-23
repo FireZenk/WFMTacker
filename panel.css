@@ -770,3 +770,195 @@ html, body {
   color: var(--wfm-text);
   background: rgba(255,255,255,0.04);
 }
+
+/* ── Sidebar tabs ─────────────────────────────────────────── */
+
+.wfm-panel-sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--wfm-border);
+  flex-shrink: 0;
+}
+
+.wfm-panel-sidebar-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--wfm-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.wfm-panel-sidebar-tab svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.wfm-panel-sidebar-tab:hover { color: var(--wfm-text); }
+
+.wfm-panel-sidebar-tab.active {
+  color: var(--wfm-teal);
+  border-bottom-color: var(--wfm-teal);
+}
+
+/* ── Alert center ─────────────────────────────────────────── */
+
+.wfm-panel-ac-row {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--wfm-border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.wfm-panel-ac-row:hover,
+.wfm-panel-ac-row.wfm-panel-wl-active { background: rgba(255,255,255,0.04); }
+
+.wfm-panel-ac-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.wfm-panel-ac-name {
+  font-size: 12px;
+  color: var(--wfm-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.wfm-panel-ac-dir {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.wfm-panel-ac-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--wfm-text-muted);
+  margin-bottom: 5px;
+}
+
+.wfm-panel-ac-bar-wrap {
+  height: 3px;
+  background: var(--wfm-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.wfm-panel-ac-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.teal { color: var(--wfm-teal); }
+.orange { color: var(--wfm-orange); }
+.red { color: var(--wfm-pink); }
+
+.wfm-panel-ac-bar.teal   { background: var(--wfm-teal); }
+.wfm-panel-ac-bar.orange { background: var(--wfm-orange); }
+.wfm-panel-ac-bar.red    { background: var(--wfm-pink); }
+
+/* ── Bulk select ──────────────────────────────────────────── */
+
+.wfm-panel-wl-select {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  border-radius: 5px;
+  color: var(--wfm-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.wfm-panel-wl-select:hover {
+  border-color: var(--wfm-teal);
+  color: var(--wfm-teal);
+}
+
+.wfm-panel-select-bar {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--wfm-border);
+  background: rgba(255,255,255,0.02);
+}
+
+.wfm-panel-select-bar button {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.wfm-panel-select-all {
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  color: var(--wfm-text-muted);
+}
+
+.wfm-panel-select-all:hover {
+  border-color: var(--wfm-teal);
+  color: var(--wfm-teal);
+}
+
+.wfm-panel-remove-selected {
+  background: rgba(232,83,138,0.15);
+  border: 1px solid var(--wfm-pink);
+  color: var(--wfm-pink);
+}
+
+.wfm-panel-remove-selected:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wfm-panel-select-cancel {
+  background: transparent;
+  border: 1px solid var(--wfm-border);
+  color: var(--wfm-text-muted);
+}
+
+.wfm-panel-select-cancel:hover { color: var(--wfm-text); }
+
+.wfm-panel-wl-selectable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.wfm-panel-wl-check {
+  flex-shrink: 0;
+  accent-color: var(--wfm-teal);
+}
+
+.wfm-panel-wl-selected { background: rgba(38,217,199,0.06); }
+
+.wfm-panel-wl-name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wfm-panel-wl-alert-dot { font-size: 10px; }

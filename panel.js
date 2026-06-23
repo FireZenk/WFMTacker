@@ -29,10 +29,13 @@ async function trackRecentlyViewed(slug, name) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-let currentSlug  = null;
-let currentRange = '90days';
-let navHistory   = [];
-let navIndex     = -1;
+let currentSlug    = null;
+let currentRange   = '90days';
+let navHistory     = [];
+let navIndex       = -1;
+let sidebarTab     = 'watchlist'; // 'watchlist' | 'alerts'
+let selectMode     = false;
+let selectedSlugs  = new Set();
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -42,6 +45,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   setupSearch();
   renderSidebar();
+
+  document.getElementById('wfm-tab-watchlist')?.addEventListener('click', () => {
+    sidebarTab = 'watchlist'; selectMode = false; selectedSlugs.clear(); renderSidebar();
+  });
+  document.getElementById('wfm-tab-alerts')?.addEventListener('click', () => {
+    sidebarTab = 'alerts'; selectMode = false; selectedSlugs.clear(); renderSidebar();
+  });
 
   document.getElementById('wfm-panel-open-settings')?.addEventListener('click', () => {
     browser.runtime.openOptionsPage();
@@ -435,18 +445,45 @@ async function toggleWatch(slug, name, price, rank = null) {
 
 // ── Sidebar / Watchlist ───────────────────────────────────────────────────────
 
+function alertProximity(price, below, above) {
+  const entries = [];
+  if (below != null && price > 0) {
+    const dist    = price - below;
+    const pct     = Math.round((dist / price) * 100);
+    const fill    = Math.min(100, Math.round((below / price) * 100));
+    const urgent  = pct <= 5 ? 'red' : pct <= 20 ? 'orange' : 'teal';
+    entries.push({ dir: 'below', threshold: below, dist, pct, fill, urgent });
+  }
+  if (above != null && price > 0) {
+    const dist    = above - price;
+    const pct     = Math.round((dist / above) * 100);
+    const fill    = Math.min(100, Math.round((price / above) * 100));
+    const urgent  = pct <= 5 ? 'red' : pct <= 20 ? 'orange' : 'teal';
+    entries.push({ dir: 'above', threshold: above, dist, pct, fill, urgent });
+  }
+  return entries;
+}
+
 async function renderSidebar() {
   const list    = await getWatchlist();
   const slugs   = Object.keys(list);
   const body    = document.getElementById('wfm-panel-wl-body');
   const count   = document.getElementById('wfm-panel-wl-count');
+  const alertCount    = document.getElementById('wfm-panel-alert-count');
   const refreshBtn    = document.getElementById('wfm-panel-wl-refresh');
   const exportBtn     = document.getElementById('wfm-panel-wl-export');
+  const selectBtn     = document.getElementById('wfm-panel-wl-select');
+  const selectBar     = document.getElementById('wfm-panel-select-bar');
   const recentSection = document.getElementById('wfm-panel-recent-section');
   const recentBody    = document.getElementById('wfm-panel-recent-body');
 
+  // Tab active state
+  document.getElementById('wfm-tab-watchlist').classList.toggle('active', sidebarTab === 'watchlist');
+  document.getElementById('wfm-tab-alerts').classList.toggle('active', sidebarTab === 'alerts');
+
+  // Recently viewed (only in watchlist tab)
   const recent = await getRecentlyViewed();
-  if (recent.length) {
+  if (recent.length && sidebarTab === 'watchlist') {
     recentSection.style.display = '';
     recentBody.innerHTML = recent.map(e => `
       <div class="wfm-panel-recent-row ${e.slug === currentSlug ? 'wfm-panel-wl-active' : ''}" data-slug="${e.slug}">
@@ -461,16 +498,132 @@ async function renderSidebar() {
 
   count.textContent = slugs.length;
 
+  // Alert count badge
+  const alertItems = slugs.filter(s => list[s].alert?.below != null || list[s].alert?.above != null);
+  if (alertItems.length) {
+    alertCount.textContent = alertItems.length;
+    alertCount.style.display = '';
+  } else {
+    alertCount.style.display = 'none';
+  }
+
   if (!slugs.length) {
     body.innerHTML = '<div class="wfm-panel-wl-empty">No items yet.<br>Click Watch on any item to add it.</div>';
     refreshBtn.style.display = 'none';
     exportBtn.style.display  = 'none';
+    selectBtn.style.display  = 'none';
+    selectBar.style.display  = 'none';
+    selectMode = false;
+    selectedSlugs.clear();
     return;
   }
 
+  // ── Alert center tab ────────────────────────────────────────
+  if (sidebarTab === 'alerts') {
+    refreshBtn.style.display = 'none';
+    exportBtn.style.display  = 'none';
+    selectBtn.style.display  = 'none';
+    selectBar.style.display  = 'none';
+
+    if (!alertItems.length) {
+      body.innerHTML = '<div class="wfm-panel-wl-empty">No alerts set.<br>Add Below / Above thresholds in Watchlist.</div>';
+      return;
+    }
+
+    const sorted = alertItems
+      .flatMap(s => alertProximity(list[s].lastPrice, list[s].alert?.below, list[s].alert?.above)
+        .map(e => ({ slug: s, item: list[s], ...e })))
+      .sort((a, b) => a.pct - b.pct);
+
+    body.innerHTML = sorted.map(({ slug, item, dir, threshold, dist, pct, fill, urgent }) => `
+      <div class="wfm-panel-ac-row ${slug === currentSlug ? 'wfm-panel-wl-active' : ''}" data-slug="${slug}">
+        <div class="wfm-panel-ac-title">
+          <span class="wfm-panel-ac-name">${esc(item.name)}</span>
+          <span class="wfm-panel-ac-dir ${urgent}">${dir === 'below' ? '↓' : '↑'} ${threshold}p</span>
+        </div>
+        <div class="wfm-panel-ac-meta">
+          <span>${item.lastPrice}p → ${threshold}p</span>
+          <span class="${urgent}">${dist >= 0 ? dist + 'p away' : 'TRIGGERED'} (${pct}%)</span>
+        </div>
+        <div class="wfm-panel-ac-bar-wrap">
+          <div class="wfm-panel-ac-bar ${urgent}" style="width:${fill}%"></div>
+        </div>
+      </div>`).join('');
+
+    body.querySelectorAll('.wfm-panel-ac-row').forEach(row =>
+      row.addEventListener('click', () => navigateTo(row.dataset.slug))
+    );
+    return;
+  }
+
+  // ── Watchlist tab ────────────────────────────────────────────
   refreshBtn.style.display = '';
   exportBtn.style.display  = '';
+  selectBtn.style.display  = '';
   exportBtn.onclick = () => exportWatchlistCSV();
+
+  if (selectMode) {
+    selectBar.style.display = '';
+    refreshBtn.style.display = 'none';
+    exportBtn.style.display  = 'none';
+    selectBtn.style.display  = 'none';
+
+    const removeBtn = document.getElementById('wfm-panel-remove-selected');
+    removeBtn.textContent = `Remove (${selectedSlugs.size})`;
+    removeBtn.disabled = selectedSlugs.size === 0;
+
+    body.innerHTML = slugs.map(slug => {
+      const item    = list[slug];
+      const checked = selectedSlugs.has(slug);
+      return `
+        <div class="wfm-panel-wl-row wfm-panel-wl-selectable ${checked ? 'wfm-panel-wl-selected' : ''}" data-slug="${slug}">
+          <input type="checkbox" class="wfm-panel-wl-check" ${checked ? 'checked' : ''} data-slug="${slug}">
+          <span class="wfm-panel-wl-name">${esc(item.name)}</span>
+          <span class="wfm-panel-wl-price">${item.lastPrice}p</span>
+        </div>`;
+    }).join('');
+
+    body.querySelectorAll('.wfm-panel-wl-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const s = row.dataset.slug;
+        if (selectedSlugs.has(s)) selectedSlugs.delete(s); else selectedSlugs.add(s);
+        renderSidebar();
+      });
+    });
+
+    document.getElementById('wfm-panel-select-all').onclick = () => {
+      if (selectedSlugs.size === slugs.length) selectedSlugs.clear();
+      else slugs.forEach(s => selectedSlugs.add(s));
+      renderSidebar();
+    };
+
+    removeBtn.onclick = async () => {
+      const list2 = await getWatchlist();
+      selectedSlugs.forEach(s => delete list2[s]);
+      await saveWatchlist(list2);
+      const wasWatchingRemoved = selectedSlugs.has(currentSlug);
+      selectedSlugs.clear();
+      selectMode = false;
+      if (wasWatchingRemoved) {
+        const watchBtn = document.getElementById('wfm-panel-watch-btn');
+        if (watchBtn) {
+          watchBtn.classList.remove('active');
+          watchBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/></svg> Watch`;
+        }
+      }
+      renderSidebar();
+    };
+
+    document.getElementById('wfm-panel-select-cancel').onclick = () => {
+      selectMode = false;
+      selectedSlugs.clear();
+      renderSidebar();
+    };
+    return;
+  }
+
+  selectBar.style.display = 'none';
+  selectBtn.onclick = () => { selectMode = true; renderSidebar(); };
 
   body.innerHTML = slugs.map(slug => {
     const item    = list[slug];
@@ -479,11 +632,15 @@ async function renderSidebar() {
     const diffStr = diff === 0 ? '' : diff > 0
       ? `<span class="wfm-panel-wl-up">▲${diff}p (${diffPct}%)</span>`
       : `<span class="wfm-panel-wl-down">▼${Math.abs(diff)}p (${Math.abs(diffPct)}%)</span>`;
-    const isActive = slug === currentSlug;
+    const isActive    = slug === currentSlug;
+    const hasAlerts   = item.alert?.below != null || item.alert?.above != null;
 
     return `
       <div class="wfm-panel-wl-row ${isActive ? 'wfm-panel-wl-active' : ''}" data-slug="${slug}">
-        <span class="wfm-panel-wl-name">${esc(item.name)}</span>
+        <div class="wfm-panel-wl-name-row">
+          <span class="wfm-panel-wl-name">${esc(item.name)}</span>
+          ${hasAlerts ? '<span class="wfm-panel-wl-alert-dot" title="Alert set">🔔</span>' : ''}
+        </div>
         <div class="wfm-panel-wl-prices">
           <span class="wfm-panel-wl-price">${item.lastPrice}p</span>
           ${diffStr}
@@ -506,7 +663,6 @@ async function renderSidebar() {
       </div>`;
   }).join('');
 
-  // Click row → load item
   body.querySelectorAll('.wfm-panel-wl-row').forEach(row => {
     row.addEventListener('click', e => {
       if (e.target.closest('.wfm-panel-wl-alert-input, .wfm-panel-wl-remove')) return;
@@ -516,7 +672,6 @@ async function renderSidebar() {
     });
   });
 
-  // Alert inputs
   body.querySelectorAll('.wfm-panel-wl-alert-input').forEach(input => {
     input.addEventListener('change', async () => {
       const list2 = await getWatchlist();
@@ -525,11 +680,11 @@ async function renderSidebar() {
       list2[slug].alert = list2[slug].alert ?? {};
       list2[slug].alert[dir] = input.value ? Number(input.value) : null;
       await saveWatchlist(list2);
+      renderSidebar();
     });
     input.addEventListener('click', e => e.stopPropagation());
   });
 
-  // Remove buttons
   body.querySelectorAll('.wfm-panel-wl-remove').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
@@ -540,11 +695,7 @@ async function renderSidebar() {
         const watchBtn = document.getElementById('wfm-panel-watch-btn');
         if (watchBtn) {
           watchBtn.classList.remove('active');
-          watchBtn.innerHTML = `
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
-              <polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/>
-            </svg>
-            Watch`;
+          watchBtn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><polygon points="8,2 10,6 14,6.5 11,9.5 11.8,14 8,11.8 4.2,14 5,9.5 2,6.5 6,6"/></svg> Watch`;
         }
       }
       renderSidebar();
