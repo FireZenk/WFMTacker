@@ -1,5 +1,20 @@
 # Changelog
+## [1.5.0] - 2026-06-23
+
+### Features
+
+- Alert center and bulk watchlist management
+
 ## [1.4.5] - 2026-06-22
+
+### Bug Fixes
+
+- Refresh sidebar after tracking viewed item
+- Include rank-utils.js in Chrome and Firefox ZIPs
+
+### Documentation
+
+- Update store description with v1.4.5 features
 
 ### Features
 
