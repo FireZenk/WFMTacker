@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (copy) copy.textContent = `© ${new Date().getFullYear()} OptimusRex · v${browser.runtime.getManifest().version}`;
 
   setupSearch();
+  setupImportButton();
   renderSidebar();
 
   document.getElementById('wfm-tab-watchlist')?.addEventListener('click', () => {
@@ -411,6 +412,40 @@ async function exportWatchlistCSV() {
   downloadCSV(rows, `wfm-watchlist-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
+// ── CSV import ──────────────────────────────────────────────────────────────────
+
+async function importWatchlistCSV(file) {
+  const text     = await file.text();
+  const imported = csvToWatchlist(text);
+  const count    = Object.keys(imported).length;
+  if (!count) {
+    alert('No valid items found in CSV. Make sure the file has a "slug" column.');
+    return;
+  }
+  const current = await getWatchlist();
+  // Overwrite matching slugs, keep the rest.
+  await saveWatchlist({ ...current, ...imported });
+  await renderSidebar();
+}
+
+function setupImportButton() {
+  const importBtn  = document.getElementById('wfm-panel-wl-import');
+  const importFile = document.getElementById('wfm-panel-wl-import-file');
+  if (!importBtn || !importFile) return;
+  importBtn.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', async () => {
+    const file = importFile.files[0];
+    importFile.value = '';  // allow re-importing the same file
+    if (!file) return;
+    try {
+      await importWatchlistCSV(file);
+    } catch (e) {
+      console.warn('[WFM-PH] import error:', e.message);
+      alert('Could not import CSV: ' + e.message);
+    }
+  });
+}
+
 function drawChart(points, forecastData = null) {
   const area = document.getElementById('wfm-panel-chart-area');
   if (!area) return;
@@ -472,6 +507,7 @@ async function renderSidebar() {
   const alertCount    = document.getElementById('wfm-panel-alert-count');
   const refreshBtn    = document.getElementById('wfm-panel-wl-refresh');
   const exportBtn     = document.getElementById('wfm-panel-wl-export');
+  const importBtn     = document.getElementById('wfm-panel-wl-import');
   const selectBtn     = document.getElementById('wfm-panel-wl-select');
   const selectBar     = document.getElementById('wfm-panel-select-bar');
   const recentSection = document.getElementById('wfm-panel-recent-section');
@@ -522,6 +558,7 @@ async function renderSidebar() {
   if (sidebarTab === 'alerts') {
     refreshBtn.style.display = 'none';
     exportBtn.style.display  = 'none';
+    importBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
     selectBar.style.display  = 'none';
 
@@ -559,6 +596,7 @@ async function renderSidebar() {
   // ── Watchlist tab ────────────────────────────────────────────
   refreshBtn.style.display = '';
   exportBtn.style.display  = '';
+  importBtn.style.display  = '';
   selectBtn.style.display  = '';
   exportBtn.onclick = () => exportWatchlistCSV();
 
@@ -566,6 +604,7 @@ async function renderSidebar() {
     selectBar.style.display = '';
     refreshBtn.style.display = 'none';
     exportBtn.style.display  = 'none';
+    importBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
 
     const removeBtn = document.getElementById('wfm-panel-remove-selected');
