@@ -1,4 +1,10 @@
 # Changelog
+## [1.6.0] - 2026-06-27
+
+### Features
+
+- Import watchlist from CSV
+
 ## [1.5.0] - 2026-06-23
 
 ### Features
