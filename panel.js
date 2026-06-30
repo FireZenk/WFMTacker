@@ -505,6 +505,7 @@ async function renderSidebar() {
   const count   = document.getElementById('wfm-panel-wl-count');
   const alertCount    = document.getElementById('wfm-panel-alert-count');
   const refreshBtn    = document.getElementById('wfm-panel-wl-refresh');
+  const bundleBtn     = document.getElementById('wfm-panel-wl-bundle');
   const exportBtn     = document.getElementById('wfm-panel-wl-export');
   const importBtn     = document.getElementById('wfm-panel-wl-import');
   const selectBtn     = document.getElementById('wfm-panel-wl-select');
@@ -533,8 +534,12 @@ async function renderSidebar() {
 
   count.textContent = slugs.length;
 
-  // Alert count badge
-  const alertItems = slugs.filter(s => list[s].alert?.below != null || list[s].alert?.above != null);
+  // Alert count badge — any alert type (plat below/above or ducat-per-plat).
+  const alertItems = slugs.filter(s =>
+    list[s].alert?.below != null || list[s].alert?.above != null || list[s].alert?.dpp != null);
+  // Alert center is a price-proximity view, so it only covers below/above.
+  const proximityItems = slugs.filter(s =>
+    list[s].alert?.below != null || list[s].alert?.above != null);
   if (alertItems.length) {
     alertCount.textContent = alertItems.length;
     alertCount.style.display = '';
@@ -545,6 +550,7 @@ async function renderSidebar() {
   if (!slugs.length) {
     body.innerHTML = '<div class="wfm-panel-wl-empty">No items yet.<br>Click Watch on any item to add it.</div>';
     refreshBtn.style.display = 'none';
+    bundleBtn.style.display  = 'none';
     exportBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
     selectBar.style.display  = 'none';
@@ -556,17 +562,18 @@ async function renderSidebar() {
   // ── Alert center tab ────────────────────────────────────────
   if (sidebarTab === 'alerts') {
     refreshBtn.style.display = 'none';
+    bundleBtn.style.display  = 'none';
     exportBtn.style.display  = 'none';
     importBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
     selectBar.style.display  = 'none';
 
-    if (!alertItems.length) {
-      body.innerHTML = '<div class="wfm-panel-wl-empty">No alerts set.<br>Add Below / Above thresholds in Watchlist.</div>';
+    if (!proximityItems.length) {
+      body.innerHTML = '<div class="wfm-panel-wl-empty">No price alerts set.<br>Add Below / Above thresholds in Watchlist.</div>';
       return;
     }
 
-    const sorted = alertItems
+    const sorted = proximityItems
       .flatMap(s => alertProximity(list[s].lastPrice, list[s].alert?.below, list[s].alert?.above)
         .map(e => ({ slug: s, item: list[s], ...e })))
       .sort((a, b) => a.pct - b.pct);
@@ -594,14 +601,17 @@ async function renderSidebar() {
 
   // ── Watchlist tab ────────────────────────────────────────────
   refreshBtn.style.display = '';
+  bundleBtn.style.display  = slugs.length >= 2 ? '' : 'none';
   exportBtn.style.display  = '';
   importBtn.style.display  = '';
   selectBtn.style.display  = '';
   exportBtn.onclick = () => exportWatchlistCSV();
+  bundleBtn.onclick = () => showBundleDeals();
 
   if (selectMode) {
     selectBar.style.display = '';
     refreshBtn.style.display = 'none';
+    bundleBtn.style.display  = 'none';
     exportBtn.style.display  = 'none';
     importBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
@@ -671,7 +681,8 @@ async function renderSidebar() {
       ? `<span class="wfm-panel-wl-up">▲${diff}p (${diffPct}%)</span>`
       : `<span class="wfm-panel-wl-down">▼${Math.abs(diff)}p (${Math.abs(diffPct)}%)</span>`;
     const isActive    = slug === currentSlug;
-    const hasAlerts   = item.alert?.below != null || item.alert?.above != null;
+    const hasAlerts   = item.alert?.below != null || item.alert?.above != null || item.alert?.dpp != null;
+    const isPrime     = slug.includes('prime');
 
     return `
       <div class="wfm-panel-wl-row ${isActive ? 'wfm-panel-wl-active' : ''}" data-slug="${slug}">
@@ -684,7 +695,7 @@ async function renderSidebar() {
           ${diffStr}
         </div>
         <div class="wfm-panel-wl-alerts">
-          <label class="wfm-panel-wl-alert-label" data-tooltip="Alert when price drops below this">
+          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-below" data-tooltip="Alert when price drops below this">
             Below
             <input class="wfm-panel-wl-alert-input" type="number" min="1" placeholder="—"
               value="${item.alert?.below ?? ''}" data-slug="${slug}" data-dir="below">
@@ -694,6 +705,12 @@ async function renderSidebar() {
             <input class="wfm-panel-wl-alert-input" type="number" min="1" placeholder="—"
               value="${item.alert?.above ?? ''}" data-slug="${slug}" data-dir="above">
           </label>
+          ${isPrime ? `
+          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-dpp" data-tooltip="Notify when a seller lists this at ≥ this many ducats per platinum">
+            D/p
+            <input class="wfm-panel-wl-alert-input" type="number" min="1" step="0.5" placeholder="—"
+              value="${item.alert?.dpp ?? ''}" data-slug="${slug}" data-dir="dpp">
+          </label>` : ''}
         </div>
         <div class="wfm-panel-wl-row-actions">
           <button class="wfm-panel-wl-remove" data-slug="${slug}" title="Remove from watchlist">✕</button>
@@ -744,6 +761,89 @@ async function renderSidebar() {
     await browser.runtime.sendMessage({ type: 'CHECK_NOW' });
     setTimeout(renderSidebar, 500);
   };
+}
+
+// ── Bundle deals (multi-item seller matching) ─────────────────────────────────
+
+async function showBundleDeals() {
+  const content = document.getElementById('wfm-panel-content');
+  const list    = await getWatchlist();
+  const slugs   = Object.keys(list);
+  if (slugs.length < 2) return;
+
+  const head = sub => `
+    <div class="wfm-panel-bundle-head">
+      <h2 class="wfm-panel-bundle-title">⚖ Bundle deals</h2>
+      <span class="wfm-panel-bundle-sub">${sub}</span>
+    </div>`;
+
+  content.innerHTML = `
+    <div class="wfm-panel-bundle">
+      ${head(`Scanning ${slugs.length} watchlist items for sellers with 2+…`)}
+      <div class="wfm-panel-bundle-loading">Loading live orders…</div>
+    </div>`;
+
+  const entries = await Promise.all(slugs.map(async slug => {
+    const orders = await fetchOrders(slug);
+    return [slug, { name: list[slug]?.name || slug, orders }];
+  }));
+  const groups = groupBundleDeals(Object.fromEntries(entries), { statuses: ['online', 'ingame'] });
+
+  if (!groups.length) {
+    content.innerHTML = `
+      <div class="wfm-panel-bundle">
+        ${head(`Online / in-game sellers holding 2+ of your ${slugs.length} watchlist items`)}
+        <div class="wfm-panel-bundle-empty">No seller currently has 2+ of your watchlist items online.<br>Try again later, or add more items to the watchlist.</div>
+      </div>`;
+    return;
+  }
+
+  const statusBadge = s =>
+    `<span class="wfm-panel-bundle-status ${s}">${s === 'ingame' ? 'In-game' : 'Online'}</span>`;
+
+  content.innerHTML = `
+    <div class="wfm-panel-bundle">
+      ${head(`${groups.length} seller${groups.length > 1 ? 's' : ''} holding 2+ of your ${slugs.length} watchlist items`)}
+      <div class="wfm-panel-bundle-list">
+        ${groups.map((g, gi) => `
+          <div class="wfm-panel-bundle-seller">
+            <div class="wfm-panel-bundle-seller-head">
+              <span class="wfm-panel-bundle-seller-name">${esc(g.ingameName)}</span>
+              ${statusBadge(g.status)}
+              <span class="wfm-panel-bundle-rep" title="Seller reputation">★ ${g.reputation}</span>
+              <span class="wfm-panel-bundle-count">${g.items.length} items · ${g.total}p</span>
+              <button class="wfm-panel-bundle-copy" data-gi="${gi}" data-tooltip="Copy a ready-to-paste trade-chat whisper for all ${g.items.length} items">⧉ Copy whisper</button>
+            </div>
+            <div class="wfm-panel-bundle-items">
+              ${[...g.items].sort((a, b) => a.platinum - b.platinum).map(i => `
+                <div class="wfm-panel-bundle-item" data-slug="${i.slug}">
+                  <span class="wfm-panel-bundle-item-name">${esc(i.name)}</span>
+                  <span class="wfm-panel-bundle-item-price">${i.platinum}p</span>
+                </div>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  content.querySelectorAll('.wfm-panel-bundle-item').forEach(el =>
+    el.addEventListener('click', () => {
+      const input = document.getElementById('wfm-panel-search');
+      if (input) input.value = list[el.dataset.slug]?.name ?? '';
+      navigateTo(el.dataset.slug);
+    })
+  );
+
+  // Copy a full, ready-to-paste warframe.market whisper (all items + total).
+  content.querySelectorAll('.wfm-panel-bundle-copy').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const whisper = buildBundleWhisper(groups[+btn.dataset.gi]);
+      navigator.clipboard?.writeText(whisper).then(() => {
+        btn.textContent = 'Copied ✓';
+        btn.classList.add('wfm-panel-bundle-copied');
+        setTimeout(() => { btn.textContent = '⧉ Copy whisper'; btn.classList.remove('wfm-panel-bundle-copied'); }, 1400);
+      }).catch(() => {});
+    })
+  );
 }
 
 // ── Arbitrage ─────────────────────────────────────────────────────────────────

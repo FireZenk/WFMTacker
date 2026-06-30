@@ -318,6 +318,25 @@ html, body {
   color: var(--wfm-blue);
 }
 
+.wfm-panel-wl-bundle {
+  width: 100%;
+  margin-top: 6px;
+  margin-bottom: 10px;
+  padding: 5px 10px;
+  background: rgba(38, 217, 199, 0.08);
+  border: 1px solid var(--wfm-border);
+  border-radius: 3px;
+  color: var(--wfm-teal);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.wfm-panel-wl-bundle:hover {
+  border-color: var(--wfm-teal);
+  background: rgba(38, 217, 199, 0.16);
+}
+
 /* ── Watchlist rows ───────────────────────────────────────── */
 
 .wfm-panel-wl-row {
@@ -363,6 +382,7 @@ html, body {
 
 .wfm-panel-wl-alerts {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 5px;
 }
@@ -376,13 +396,42 @@ html, body {
 }
 
 .wfm-panel-wl-alert-input {
-  width: 50px;
+  width: 46px;
   padding: 2px 4px;
   background: var(--wfm-bg);
   border: 1px solid var(--wfm-border);
   border-radius: 2px;
   color: var(--wfm-text);
   font-size: 10px;
+}
+
+.wfm-panel-wl-alert-dpp { color: var(--wfm-orange); }
+.wfm-panel-wl-alert-dpp .wfm-panel-wl-alert-input { border-color: rgba(245, 166, 35, 0.4); }
+
+/* Alert labels sit at the sidebar's edges, so a centered tooltip overflows the
+   panel. Anchor the rightmost (D/p) tooltip to the right and the leftmost
+   (Below) to the left, so both grow inward and stay on screen. */
+.wfm-panel-wl-alert-dpp[data-tooltip]::after {
+  left: auto;
+  right: 0;
+  transform: none;
+  max-width: 200px;
+}
+.wfm-panel-wl-alert-dpp[data-tooltip]::before {
+  left: auto;
+  right: 8px;
+  transform: none;
+}
+.wfm-panel-wl-alert-below[data-tooltip]::after {
+  left: 0;
+  right: auto;
+  transform: none;
+  max-width: 200px;
+}
+.wfm-panel-wl-alert-below[data-tooltip]::before {
+  left: 8px;
+  right: auto;
+  transform: none;
 }
 
 .wfm-panel-wl-row-actions {
@@ -962,3 +1011,97 @@ html, body {
 }
 
 .wfm-panel-wl-alert-dot { font-size: 10px; }
+
+/* ── Bundle deals view ────────────────────────────────────── */
+.wfm-panel-bundle { padding: 18px 22px; }
+
+.wfm-panel-bundle-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--wfm-border);
+}
+
+.wfm-panel-bundle-title { margin: 0; font-size: 18px; color: var(--wfm-text); }
+.wfm-panel-bundle-sub   { font-size: 12px; color: var(--wfm-text-muted); }
+
+.wfm-panel-bundle-loading,
+.wfm-panel-bundle-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--wfm-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wfm-panel-bundle-list { display: flex; flex-direction: column; gap: 12px; }
+
+.wfm-panel-bundle-seller {
+  background: var(--wfm-surface);
+  border: 1px solid var(--wfm-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.wfm-panel-bundle-seller-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--wfm-bg);
+  border-bottom: 1px solid var(--wfm-border);
+}
+
+.wfm-panel-bundle-seller-name {
+  font-weight: 700;
+  color: var(--wfm-text);
+}
+
+.wfm-panel-bundle-copy {
+  margin-left: 8px;
+  padding: 3px 9px;
+  background: rgba(38, 217, 199, 0.08);
+  border: 1px solid var(--wfm-border);
+  border-radius: 4px;
+  color: var(--wfm-teal);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wfm-panel-bundle-copy:hover { border-color: var(--wfm-teal); background: rgba(38, 217, 199, 0.16); }
+.wfm-panel-bundle-copied { border-color: var(--wfm-green) !important; color: var(--wfm-green) !important; }
+
+.wfm-panel-bundle-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+.wfm-panel-bundle-status.ingame { background: rgba(76, 175, 80, 0.18); color: var(--wfm-green); }
+.wfm-panel-bundle-status.online { background: rgba(94, 200, 208, 0.15); color: var(--wfm-blue); }
+
+.wfm-panel-bundle-rep   { font-size: 11px; color: var(--wfm-orange); }
+.wfm-panel-bundle-count { margin-left: auto; font-size: 11px; color: var(--wfm-text-muted); }
+
+.wfm-panel-bundle-items { display: flex; flex-direction: column; }
+
+.wfm-panel-bundle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  cursor: pointer;
+  border-top: 1px solid var(--wfm-border);
+  transition: background 0.12s;
+}
+.wfm-panel-bundle-item:first-child { border-top: none; }
+.wfm-panel-bundle-item:hover { background: rgba(38, 217, 199, 0.07); }
+
+.wfm-panel-bundle-item-name  { font-size: 13px; color: var(--wfm-text); }
+.wfm-panel-bundle-item-price { font-size: 13px; font-weight: 600; color: var(--wfm-teal); }

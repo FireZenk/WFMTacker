@@ -74,6 +74,20 @@ async function fetchItemV2(slug) {
   } catch { return null; }
 }
 
+// Live market orders (v2 — v1 /orders is unreliable). Returns the raw order
+// array; callers filter by type/status. Resolves to [] on failure so a single
+// bad item never breaks bundle matching across the watchlist.
+async function fetchOrders(slug) {
+  try {
+    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, {
+      headers: { 'Language': 'en', 'Platform': 'pc' }
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data ?? [];
+  } catch { return []; }
+}
+
 async function fetchPartPrice(slug) {
   try {
     const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
