@@ -1,15 +1,33 @@
 /* WFM Tracker — rank utilities (shared by content script and panel) */
 
+/* Bucket daily/hourly entries by the exact mod_rank traded. Returns null when
+   the item has no rank data (prime parts, ordinary items). Otherwise returns
+   { ranks: [sorted distinct ranks], r0: [...], r3: [...], ... } — one r{n}
+   bucket per rank actually present in the data, so a rank-3 arcane exposes r3
+   and a rank-10 mod exposes r10 without any hardcoded assumptions. */
 function splitByRank(days) {
   if (!days.some(e => e.mod_rank != null)) return null;
-  return {
-    r0: days.filter(e => e.mod_rank === 0),
-    r5: days.filter(e => e.mod_rank === 5),
-  };
+  const ranks = [...new Set(days.filter(e => e.mod_rank != null).map(e => e.mod_rank))]
+    .sort((a, b) => a - b);
+  const split = { ranks };
+  for (const r of ranks) split[`r${r}`] = days.filter(e => e.mod_rank === r);
+  return split;
 }
 
+// Use the saved rank when set; otherwise default to the highest rank traded
+// (the maxed item — usually the one users alert on), falling back to 0.
 function resolveRank(savedRank, rankSplit90) {
-  return savedRank !== null ? savedRank : ((rankSplit90?.r5?.length) ? 5 : 0);
+  if (savedRank !== null && savedRank !== undefined) return savedRank;
+  const ranks = rankSplit90?.ranks;
+  return (ranks && ranks.length) ? ranks[ranks.length - 1] : 0;
+}
+
+// Button label for a rank: 0 → "Unranked", the highest rank → "R{n} ★"
+// (maxed), any intermediate rank → "R{n}".
+function rankLabel(rank, ranks) {
+  if (rank === 0) return 'Unranked';
+  const max = ranks[ranks.length - 1];
+  return rank === max ? `R${rank} ★` : `R${rank}`;
 }
 
 // ── CSV parsing (watchlist import) ──────────────────────────────────────────────
@@ -94,5 +112,5 @@ function csvToWatchlist(text) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { splitByRank, resolveRank, parseCSV, csvToWatchlist };
+  module.exports = { splitByRank, resolveRank, rankLabel, parseCSV, csvToWatchlist };
 }

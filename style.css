@@ -186,6 +186,7 @@
 
 .wfm-ph-rank-toggle {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-left: 8px;
   vertical-align: middle;
