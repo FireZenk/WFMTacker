@@ -505,6 +505,7 @@ async function renderSidebar() {
   const count   = document.getElementById('wfm-panel-wl-count');
   const alertCount    = document.getElementById('wfm-panel-alert-count');
   const refreshBtn    = document.getElementById('wfm-panel-wl-refresh');
+  const bundleBtn     = document.getElementById('wfm-panel-wl-bundle');
   const exportBtn     = document.getElementById('wfm-panel-wl-export');
   const importBtn     = document.getElementById('wfm-panel-wl-import');
   const selectBtn     = document.getElementById('wfm-panel-wl-select');
@@ -545,6 +546,7 @@ async function renderSidebar() {
   if (!slugs.length) {
     body.innerHTML = '<div class="wfm-panel-wl-empty">No items yet.<br>Click Watch on any item to add it.</div>';
     refreshBtn.style.display = 'none';
+    bundleBtn.style.display  = 'none';
     exportBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
     selectBar.style.display  = 'none';
@@ -556,6 +558,7 @@ async function renderSidebar() {
   // ── Alert center tab ────────────────────────────────────────
   if (sidebarTab === 'alerts') {
     refreshBtn.style.display = 'none';
+    bundleBtn.style.display  = 'none';
     exportBtn.style.display  = 'none';
     importBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
@@ -594,14 +597,17 @@ async function renderSidebar() {
 
   // ── Watchlist tab ────────────────────────────────────────────
   refreshBtn.style.display = '';
+  bundleBtn.style.display  = slugs.length >= 2 ? '' : 'none';
   exportBtn.style.display  = '';
   importBtn.style.display  = '';
   selectBtn.style.display  = '';
   exportBtn.onclick = () => exportWatchlistCSV();
+  bundleBtn.onclick = () => showBundleDeals();
 
   if (selectMode) {
     selectBar.style.display = '';
     refreshBtn.style.display = 'none';
+    bundleBtn.style.display  = 'none';
     exportBtn.style.display  = 'none';
     importBtn.style.display  = 'none';
     selectBtn.style.display  = 'none';
@@ -744,6 +750,88 @@ async function renderSidebar() {
     await browser.runtime.sendMessage({ type: 'CHECK_NOW' });
     setTimeout(renderSidebar, 500);
   };
+}
+
+// ── Bundle deals (multi-item seller matching) ─────────────────────────────────
+
+async function showBundleDeals() {
+  const content = document.getElementById('wfm-panel-content');
+  const list    = await getWatchlist();
+  const slugs   = Object.keys(list);
+  if (slugs.length < 2) return;
+
+  const head = sub => `
+    <div class="wfm-panel-bundle-head">
+      <h2 class="wfm-panel-bundle-title">⚖ Bundle deals</h2>
+      <span class="wfm-panel-bundle-sub">${sub}</span>
+    </div>`;
+
+  content.innerHTML = `
+    <div class="wfm-panel-bundle">
+      ${head(`Scanning ${slugs.length} watchlist items for sellers with 2+…`)}
+      <div class="wfm-panel-bundle-loading">Loading live orders…</div>
+    </div>`;
+
+  const entries = await Promise.all(slugs.map(async slug => {
+    const orders = await fetchOrders(slug);
+    return [slug, { name: list[slug]?.name || slug, orders }];
+  }));
+  const groups = groupBundleDeals(Object.fromEntries(entries), { statuses: ['online', 'ingame'] });
+
+  if (!groups.length) {
+    content.innerHTML = `
+      <div class="wfm-panel-bundle">
+        ${head(`Online / in-game sellers holding 2+ of your ${slugs.length} watchlist items`)}
+        <div class="wfm-panel-bundle-empty">No seller currently has 2+ of your watchlist items online.<br>Try again later, or add more items to the watchlist.</div>
+      </div>`;
+    return;
+  }
+
+  const statusBadge = s =>
+    `<span class="wfm-panel-bundle-status ${s}">${s === 'ingame' ? 'In-game' : 'Online'}</span>`;
+
+  content.innerHTML = `
+    <div class="wfm-panel-bundle">
+      ${head(`${groups.length} seller${groups.length > 1 ? 's' : ''} holding 2+ of your ${slugs.length} watchlist items`)}
+      <div class="wfm-panel-bundle-list">
+        ${groups.map(g => `
+          <div class="wfm-panel-bundle-seller">
+            <div class="wfm-panel-bundle-seller-head">
+              <span class="wfm-panel-bundle-seller-name" data-name="${esc(g.ingameName)}" title="Copy whisper to clipboard">${esc(g.ingameName)}</span>
+              ${statusBadge(g.status)}
+              <span class="wfm-panel-bundle-rep" title="Seller reputation">★ ${g.reputation}</span>
+              <span class="wfm-panel-bundle-count">${g.items.length} items · ${g.total}p</span>
+            </div>
+            <div class="wfm-panel-bundle-items">
+              ${[...g.items].sort((a, b) => a.platinum - b.platinum).map(i => `
+                <div class="wfm-panel-bundle-item" data-slug="${i.slug}">
+                  <span class="wfm-panel-bundle-item-name">${esc(i.name)}</span>
+                  <span class="wfm-panel-bundle-item-price">${i.platinum}p</span>
+                </div>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  content.querySelectorAll('.wfm-panel-bundle-item').forEach(el =>
+    el.addEventListener('click', () => {
+      const input = document.getElementById('wfm-panel-search');
+      if (input) input.value = list[el.dataset.slug]?.name ?? '';
+      navigateTo(el.dataset.slug);
+    })
+  );
+
+  // Click a seller name to copy a ready-to-paste whisper for the trade chat.
+  content.querySelectorAll('.wfm-panel-bundle-seller-name').forEach(el =>
+    el.addEventListener('click', () => {
+      navigator.clipboard?.writeText(`/w ${el.dataset.name} Hi! I want to buy several items from your listings :)`).then(() => {
+        const orig = el.textContent;
+        el.textContent = 'copied ✓';
+        el.classList.add('wfm-panel-bundle-copied');
+        setTimeout(() => { el.textContent = orig; el.classList.remove('wfm-panel-bundle-copied'); }, 1200);
+      }).catch(() => {});
+    })
+  );
 }
 
 // ── Arbitrage ─────────────────────────────────────────────────────────────────
