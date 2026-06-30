@@ -695,7 +695,7 @@ async function renderSidebar() {
           ${diffStr}
         </div>
         <div class="wfm-panel-wl-alerts">
-          <label class="wfm-panel-wl-alert-label" data-tooltip="Alert when price drops below this">
+          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-below" data-tooltip="Alert when price drops below this">
             Below
             <input class="wfm-panel-wl-alert-input" type="number" min="1" placeholder="—"
               value="${item.alert?.below ?? ''}" data-slug="${slug}" data-dir="below">
