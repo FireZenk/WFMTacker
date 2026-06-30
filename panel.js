@@ -534,8 +534,12 @@ async function renderSidebar() {
 
   count.textContent = slugs.length;
 
-  // Alert count badge
-  const alertItems = slugs.filter(s => list[s].alert?.below != null || list[s].alert?.above != null || list[s].alert?.dpp != null);
+  // Alert count badge — any alert type (plat below/above or ducat-per-plat).
+  const alertItems = slugs.filter(s =>
+    list[s].alert?.below != null || list[s].alert?.above != null || list[s].alert?.dpp != null);
+  // Alert center is a price-proximity view, so it only covers below/above.
+  const proximityItems = slugs.filter(s =>
+    list[s].alert?.below != null || list[s].alert?.above != null);
   if (alertItems.length) {
     alertCount.textContent = alertItems.length;
     alertCount.style.display = '';
@@ -564,12 +568,12 @@ async function renderSidebar() {
     selectBtn.style.display  = 'none';
     selectBar.style.display  = 'none';
 
-    if (!alertItems.length) {
-      body.innerHTML = '<div class="wfm-panel-wl-empty">No alerts set.<br>Add Below / Above thresholds in Watchlist.</div>';
+    if (!proximityItems.length) {
+      body.innerHTML = '<div class="wfm-panel-wl-empty">No price alerts set.<br>Add Below / Above thresholds in Watchlist.</div>';
       return;
     }
 
-    const sorted = alertItems
+    const sorted = proximityItems
       .flatMap(s => alertProximity(list[s].lastPrice, list[s].alert?.below, list[s].alert?.above)
         .map(e => ({ slug: s, item: list[s], ...e })))
       .sort((a, b) => a.pct - b.pct);
