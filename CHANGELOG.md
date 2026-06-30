@@ -1,4 +1,20 @@
 # Changelog
+## [1.7.0] - 2026-06-30
+
+### Bug Fixes
+
+- Keep ducat-only alerts out of the price-proximity alert center
+- D/p tooltip overflowing onto central panel
+- Below alert tooltip overflowing the left screen edge
+- Add bottom margin to Bundle deals button
+
+### Features
+
+- Per-rank price alerts for mods and arcanes
+- Bundle deals — find sellers holding multiple watchlist items
+- Explicit copy-whisper button with full bundle message
+- Ducat-per-platinum alert for prime items
+
 ## [1.6.0] - 2026-06-27
 
 ### Features
