@@ -706,7 +706,7 @@ async function renderSidebar() {
               value="${item.alert?.above ?? ''}" data-slug="${slug}" data-dir="above">
           </label>
           ${isPrime ? `
-          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-dpp" data-tooltip="Alert when an online seller lists this with at least this many ducats per platinum (good ducat value)">
+          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-dpp" data-tooltip="Notify when a seller lists this at ≥ this many ducats per platinum">
             D/p
             <input class="wfm-panel-wl-alert-input" type="number" min="1" step="0.5" placeholder="—"
               value="${item.alert?.dpp ?? ''}" data-slug="${slug}" data-dir="dpp">

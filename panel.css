@@ -407,6 +407,20 @@ html, body {
 .wfm-panel-wl-alert-dpp { color: var(--wfm-orange); }
 .wfm-panel-wl-alert-dpp .wfm-panel-wl-alert-input { border-color: rgba(245, 166, 35, 0.4); }
 
+/* The D/p label sits at the sidebar's right edge — anchor its tooltip to the
+   right so it grows inward instead of overflowing onto the central panel. */
+.wfm-panel-wl-alert-dpp[data-tooltip]::after {
+  left: auto;
+  right: 0;
+  transform: none;
+  max-width: 200px;
+}
+.wfm-panel-wl-alert-dpp[data-tooltip]::before {
+  left: auto;
+  right: 8px;
+  transform: none;
+}
+
 .wfm-panel-wl-row-actions {
   display: flex;
   justify-content: flex-end;
