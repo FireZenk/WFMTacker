@@ -160,10 +160,10 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   currentRange = settings.defaultRange;
   const allDays90  = statsData.closed['90days']  || [];
   const allHours48 = statsData.closed['48hours'] || [];
-  const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
-  const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
-  const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
-  let   curRank      = resolveRank(savedRank, rankSplit90);
+  const rankSplit90  = splitByRank(allDays90);
+  const rankSplit48  = splitByRank(allHours48);
+  const hasRanks     = !!rankSplit90;
+  let   curRank      = hasRanks ? resolveRank(savedRank, rankSplit90) : null;
 
   let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
   let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
@@ -271,10 +271,9 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
     <div class="wfm-panel-tabs">
       <button class="wfm-panel-tab${settings.defaultRange === '90days'  ? ' active' : ''}" data-range="90days">90 days</button>
       <button class="wfm-panel-tab${settings.defaultRange === '48hours' ? ' active' : ''}" data-range="48hours">48 hours</button>
-      ${isArcane ? `
+      ${hasRanks ? `
       <div class="wfm-ph-rank-toggle">
-        <button class="wfm-ph-rank-btn${curRank === 0 ? ' active' : ''}" data-rank="0">Unranked</button>
-        <button class="wfm-ph-rank-btn${curRank === 5 ? ' active' : ''}" data-rank="5">R5 Maxed ★</button>
+        ${rankSplit90.ranks.map(r => `<button class="wfm-ph-rank-btn${curRank === r ? ' active' : ''}" data-rank="${r}">${rankLabel(r, rankSplit90.ranks)}</button>`).join('')}
       </div>` : ''}
     </div>
 
@@ -309,7 +308,7 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
     });
   });
 
-  if (isArcane) {
+  if (hasRanks) {
     content.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         curRank = +btn.dataset.rank;
@@ -336,7 +335,7 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   content.querySelector('#wfm-panel-watch-btn').addEventListener('click', async () => {
     const liveSet = curDays90.length ? curDays90 : curHours48;
     const livePrice = Math.round((liveSet.at(-1) ?? {}).wa_price ?? (liveSet.at(-1) ?? {}).avg_price ?? 0);
-    await toggleWatch(slug, itemName, livePrice, isArcane ? curRank : null);
+    await toggleWatch(slug, itemName, livePrice, hasRanks ? curRank : null);
     renderSidebar();
     const btn = content.querySelector('#wfm-panel-watch-btn');
     const list = await getWatchlist();

@@ -501,10 +501,10 @@
   function buildWidget(slug, statsData, v2Data = null, settings = DEFAULT_SETTINGS, savedRank = null) {
     const allDays90  = statsData.closed['90days']  || [];
     const allHours48 = statsData.closed['48hours'] || [];
-    const isArcane   = !!(v2Data?.tags?.includes('arcane_enhancement'));
-    const rankSplit90  = isArcane ? splitByRank(allDays90)  : null;
-    const rankSplit48  = isArcane ? splitByRank(allHours48) : null;
-    let   curRank      = resolveRank(savedRank, rankSplit90);
+    const rankSplit90  = splitByRank(allDays90);
+    const rankSplit48  = splitByRank(allHours48);
+    const hasRanks     = !!rankSplit90;
+    let   curRank      = hasRanks ? resolveRank(savedRank, rankSplit90) : null;
 
     let curDays90  = rankSplit90 ? (rankSplit90[`r${curRank}`] || []).slice(-90) : allDays90.slice(-90);
     let curHours48 = rankSplit48 ? (rankSplit48[`r${curRank}`] || []).slice(-48) : allHours48.slice(-48);
@@ -690,10 +690,9 @@
         <div class="wfm-ph-tabs" role="tablist">
           <button class="wfm-ph-tab${settings.defaultRange === '90days'  ? ' active' : ''}" data-range="90days"  role="tab">90 days</button>
           <button class="wfm-ph-tab${settings.defaultRange === '48hours' ? ' active' : ''}" data-range="48hours" role="tab">48 hours</button>
-          ${isArcane ? `
+          ${hasRanks ? `
           <div class="wfm-ph-rank-toggle">
-            <button class="wfm-ph-rank-btn${curRank === 0 ? ' active' : ''}" data-rank="0">Unranked</button>
-            <button class="wfm-ph-rank-btn${curRank === 5 ? ' active' : ''}" data-rank="5">R5 Maxed ★</button>
+            ${rankSplit90.ranks.map(r => `<button class="wfm-ph-rank-btn${curRank === r ? ' active' : ''}" data-rank="${r}">${rankLabel(r, rankSplit90.ranks)}</button>`).join('')}
           </div>` : ''}
         </div>
       </div>
@@ -708,7 +707,8 @@
         </div>
         <div class="wfm-ph-footer-right">
           <span class="wfm-ph-donate" data-tooltip="Send gift Forma to OptimusRex007">Donate</span>
-          <a class="wfm-ph-feedback" href="https://discord.gg/wqTn6vKA" target="_blank" rel="noopener">Send Feedback</a>
+          <a class="wfm-ph-feedback" href="https://discord.gg/fAaYwXcB4" target="_blank" rel="noopener">Send Feedback</a>
+          <a class="wfm-ph-feedback" href="https://github.com/FireZenk/WFMTacker/issues" target="_blank" rel="noopener">Report on GitHub</a>
           <a class="wfm-ph-copyright" href="https://linktr.ee/optrx" target="_blank" rel="noopener">© ${new Date().getFullYear()} OptimusRex · v${browser.runtime.getManifest().version}</a>
         </div>
       </div>
@@ -724,7 +724,7 @@
     watchBtn.addEventListener('click', async () => {
       const liveSet = curDays90.length ? curDays90 : curHours48;
       const livePrice = Math.round((liveSet.at(-1) ?? {}).wa_price ?? (liveSet.at(-1) ?? {}).avg_price ?? 0);
-      const list = await toggleWatch(slug, itemName, livePrice, isArcane ? curRank : null);
+      const list = await toggleWatch(slug, itemName, livePrice, hasRanks ? curRank : null);
       watchBtn.classList.toggle('wfm-ph-watch-active', !!list[slug]);
       renderWatchlistPanel();
     });
@@ -774,7 +774,7 @@
       });
     });
 
-    if (isArcane) {
+    if (hasRanks) {
       widget.querySelectorAll('.wfm-ph-rank-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           curRank = +btn.dataset.rank;
@@ -971,6 +971,13 @@
     if (!panel) {
       panel = document.createElement('div');
       panel.id = PANEL_ID;
+      // Restore collapsed/expanded state from the last visit (persists across tabs).
+      // Uses extension storage (not page localStorage, which throws in content
+      // scripts when the site has storage blocked — strict tracking protection,
+      // private windows, etc.).
+      let collapsedPref = false;
+      try { collapsedPref = (await browser.storage.local.get('wlCollapsed')).wlCollapsed === true; } catch {}
+      panel.dataset.collapsed = collapsedPref ? 'true' : 'false';
       document.body.appendChild(panel);
     }
 
@@ -1023,7 +1030,10 @@
 
     // Toggle collapse
     panel.querySelector('#wfm-wl-toggle').addEventListener('click', () => {
-      panel.dataset.collapsed = panel.dataset.collapsed === 'true' ? 'false' : 'true';
+      const next = panel.dataset.collapsed === 'true' ? 'false' : 'true';
+      panel.dataset.collapsed = next;
+      // Persist in the background — never let a storage error break the toggle.
+      try { browser.storage.local.set({ wlCollapsed: next === 'true' }); } catch {}
       renderWatchlistPanel();
     });
 
