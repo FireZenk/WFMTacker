@@ -321,6 +321,7 @@ html, body {
 .wfm-panel-wl-bundle {
   width: 100%;
   margin-top: 6px;
+  margin-bottom: 10px;
   padding: 5px 10px;
   background: rgba(38, 217, 199, 0.08);
   border: 1px solid var(--wfm-border);
