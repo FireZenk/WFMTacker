@@ -87,6 +87,15 @@ function groupBundleDeals(ordersBySlug, opts = {}) {
     .sort((a, b) => b.items.length - a.items.length || a.total - b.total);
 }
 
+/* Build a ready-to-paste warframe.market trade-chat whisper for a bundle
+   seller: lists every item with its price and the total, in WFM's quoted
+   format. Items are listed cheapest first for a stable, readable message. */
+function buildBundleWhisper(seller) {
+  const items = [...(seller.items || [])].sort((a, b) => a.platinum - b.platinum);
+  const list  = items.map(i => `"${i.name}" for ${i.platinum}p`).join(', ');
+  return `/w ${seller.ingameName} Hi! I want to buy: ${list} — total ${seller.total}p. (warframe.market)`;
+}
+
 // ── CSV parsing (watchlist import) ──────────────────────────────────────────────
 
 /* Parse CSV text into an array of row arrays. Handles quoted fields,
@@ -169,5 +178,5 @@ function csvToWatchlist(text) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { splitByRank, resolveRank, rankLabel, groupBundleDeals, parseCSV, csvToWatchlist };
+  module.exports = { splitByRank, resolveRank, rankLabel, groupBundleDeals, buildBundleWhisper, parseCSV, csvToWatchlist };
 }

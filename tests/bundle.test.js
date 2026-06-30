@@ -1,4 +1,4 @@
-const { groupBundleDeals } = require('../rank-utils');
+const { groupBundleDeals, buildBundleWhisper } = require('../rank-utils');
 
 // Helper to build a v2-shaped sell order.
 const sell = (ingameName, platinum, status = 'online', reputation = 0) =>
@@ -95,5 +95,32 @@ describe('groupBundleDeals — multi-item seller matching', () => {
     expect(groupBundleDeals({})).toEqual([]);
     expect(groupBundleDeals(undefined)).toEqual([]);
     expect(groupBundleDeals({ a: { name: 'A', orders: [] }, b: {} })).toEqual([]);
+  });
+});
+
+describe('buildBundleWhisper', () => {
+  const seller = {
+    ingameName: 'TennoTrader42',
+    items: [
+      { name: 'Rhino Prime Set', platinum: 70 },
+      { name: 'Ash Prime Set', platinum: 45 },
+    ],
+    total: 115,
+  };
+
+  test('lists all items cheapest-first with total and warframe.market tag', () => {
+    expect(buildBundleWhisper(seller)).toBe(
+      '/w TennoTrader42 Hi! I want to buy: "Ash Prime Set" for 45p, "Rhino Prime Set" for 70p — total 115p. (warframe.market)'
+    );
+  });
+
+  test('starts with the /w whisper command and the seller name', () => {
+    expect(buildBundleWhisper(seller).startsWith('/w TennoTrader42 ')).toBe(true);
+  });
+
+  test('quotes every item name (WFM trade format)', () => {
+    const w = buildBundleWhisper(seller);
+    expect(w).toContain('"Ash Prime Set"');
+    expect(w).toContain('"Rhino Prime Set"');
   });
 });

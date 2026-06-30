@@ -794,13 +794,14 @@ async function showBundleDeals() {
     <div class="wfm-panel-bundle">
       ${head(`${groups.length} seller${groups.length > 1 ? 's' : ''} holding 2+ of your ${slugs.length} watchlist items`)}
       <div class="wfm-panel-bundle-list">
-        ${groups.map(g => `
+        ${groups.map((g, gi) => `
           <div class="wfm-panel-bundle-seller">
             <div class="wfm-panel-bundle-seller-head">
-              <span class="wfm-panel-bundle-seller-name" data-name="${esc(g.ingameName)}" title="Copy whisper to clipboard">${esc(g.ingameName)}</span>
+              <span class="wfm-panel-bundle-seller-name">${esc(g.ingameName)}</span>
               ${statusBadge(g.status)}
               <span class="wfm-panel-bundle-rep" title="Seller reputation">★ ${g.reputation}</span>
               <span class="wfm-panel-bundle-count">${g.items.length} items · ${g.total}p</span>
+              <button class="wfm-panel-bundle-copy" data-gi="${gi}" data-tooltip="Copy a ready-to-paste trade-chat whisper for all ${g.items.length} items">⧉ Copy whisper</button>
             </div>
             <div class="wfm-panel-bundle-items">
               ${[...g.items].sort((a, b) => a.platinum - b.platinum).map(i => `
@@ -821,14 +822,14 @@ async function showBundleDeals() {
     })
   );
 
-  // Click a seller name to copy a ready-to-paste whisper for the trade chat.
-  content.querySelectorAll('.wfm-panel-bundle-seller-name').forEach(el =>
-    el.addEventListener('click', () => {
-      navigator.clipboard?.writeText(`/w ${el.dataset.name} Hi! I want to buy several items from your listings :)`).then(() => {
-        const orig = el.textContent;
-        el.textContent = 'copied ✓';
-        el.classList.add('wfm-panel-bundle-copied');
-        setTimeout(() => { el.textContent = orig; el.classList.remove('wfm-panel-bundle-copied'); }, 1200);
+  // Copy a full, ready-to-paste warframe.market whisper (all items + total).
+  content.querySelectorAll('.wfm-panel-bundle-copy').forEach(btn =>
+    btn.addEventListener('click', () => {
+      const whisper = buildBundleWhisper(groups[+btn.dataset.gi]);
+      navigator.clipboard?.writeText(whisper).then(() => {
+        btn.textContent = 'Copied ✓';
+        btn.classList.add('wfm-panel-bundle-copied');
+        setTimeout(() => { btn.textContent = '⧉ Copy whisper'; btn.classList.remove('wfm-panel-bundle-copied'); }, 1400);
       }).catch(() => {});
     })
   );

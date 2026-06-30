@@ -1027,10 +1027,22 @@ html, body {
 .wfm-panel-bundle-seller-name {
   font-weight: 700;
   color: var(--wfm-text);
-  cursor: pointer;
 }
-.wfm-panel-bundle-seller-name:hover { color: var(--wfm-teal); }
-.wfm-panel-bundle-copied { color: var(--wfm-green) !important; }
+
+.wfm-panel-bundle-copy {
+  margin-left: 8px;
+  padding: 3px 9px;
+  background: rgba(38, 217, 199, 0.08);
+  border: 1px solid var(--wfm-border);
+  border-radius: 4px;
+  color: var(--wfm-teal);
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wfm-panel-bundle-copy:hover { border-color: var(--wfm-teal); background: rgba(38, 217, 199, 0.16); }
+.wfm-panel-bundle-copied { border-color: var(--wfm-green) !important; color: var(--wfm-green) !important; }
 
 .wfm-panel-bundle-status {
   font-size: 10px;
