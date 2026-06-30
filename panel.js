@@ -535,7 +535,7 @@ async function renderSidebar() {
   count.textContent = slugs.length;
 
   // Alert count badge
-  const alertItems = slugs.filter(s => list[s].alert?.below != null || list[s].alert?.above != null);
+  const alertItems = slugs.filter(s => list[s].alert?.below != null || list[s].alert?.above != null || list[s].alert?.dpp != null);
   if (alertItems.length) {
     alertCount.textContent = alertItems.length;
     alertCount.style.display = '';
@@ -677,7 +677,8 @@ async function renderSidebar() {
       ? `<span class="wfm-panel-wl-up">▲${diff}p (${diffPct}%)</span>`
       : `<span class="wfm-panel-wl-down">▼${Math.abs(diff)}p (${Math.abs(diffPct)}%)</span>`;
     const isActive    = slug === currentSlug;
-    const hasAlerts   = item.alert?.below != null || item.alert?.above != null;
+    const hasAlerts   = item.alert?.below != null || item.alert?.above != null || item.alert?.dpp != null;
+    const isPrime     = slug.includes('prime');
 
     return `
       <div class="wfm-panel-wl-row ${isActive ? 'wfm-panel-wl-active' : ''}" data-slug="${slug}">
@@ -700,6 +701,12 @@ async function renderSidebar() {
             <input class="wfm-panel-wl-alert-input" type="number" min="1" placeholder="—"
               value="${item.alert?.above ?? ''}" data-slug="${slug}" data-dir="above">
           </label>
+          ${isPrime ? `
+          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-dpp" data-tooltip="Alert when an online seller lists this with at least this many ducats per platinum (good ducat value)">
+            D/p
+            <input class="wfm-panel-wl-alert-input" type="number" min="1" step="0.5" placeholder="—"
+              value="${item.alert?.dpp ?? ''}" data-slug="${slug}" data-dir="dpp">
+          </label>` : ''}
         </div>
         <div class="wfm-panel-wl-row-actions">
           <button class="wfm-panel-wl-remove" data-slug="${slug}" title="Remove from watchlist">✕</button>

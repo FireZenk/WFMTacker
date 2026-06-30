@@ -381,6 +381,7 @@ html, body {
 
 .wfm-panel-wl-alerts {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 5px;
 }
@@ -394,7 +395,7 @@ html, body {
 }
 
 .wfm-panel-wl-alert-input {
-  width: 50px;
+  width: 46px;
   padding: 2px 4px;
   background: var(--wfm-bg);
   border: 1px solid var(--wfm-border);
@@ -402,6 +403,9 @@ html, body {
   color: var(--wfm-text);
   font-size: 10px;
 }
+
+.wfm-panel-wl-alert-dpp { color: var(--wfm-orange); }
+.wfm-panel-wl-alert-dpp .wfm-panel-wl-alert-input { border-color: rgba(245, 166, 35, 0.4); }
 
 .wfm-panel-wl-row-actions {
   display: flex;
