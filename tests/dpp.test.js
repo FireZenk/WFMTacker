@@ -36,6 +36,13 @@ describe('bestDppOrder — best ducats-per-platinum deal', () => {
     expect(bestDppOrder(orders, 100).platinum).toBe(10);
   });
 
+  test('skips hidden orders', () => {
+    // An invisible 2p listing is not buyable — it must not win over the 10p one.
+    const orders = [{ ...sell(2), visible: false }, sell(10)];
+    expect(bestDppOrder(orders, 100).platinum).toBe(10);
+    expect(bestDppOrder([{ ...sell(2), visible: false }], 100)).toBeNull();
+  });
+
   test('returns null when no qualifying orders', () => {
     expect(bestDppOrder([sell(10, 'offline')], 100)).toBeNull();
     expect(bestDppOrder([], 100)).toBeNull();

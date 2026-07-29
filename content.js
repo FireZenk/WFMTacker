@@ -1001,12 +1001,12 @@
                 ${diffStr}
               </div>
               <div class="wfm-wl-alert-row">
-                <label class="wfm-wl-alert-label" data-tooltip="Send a notification when price drops below this value">
+                <label class="wfm-wl-alert-label" data-tooltip="Notify when the cheapest live sell order drops to this or below — what you'd pay to buy now">
                   Below
                   <input class="wfm-wl-alert-input" type="number" min="1" placeholder="—"
                     value="${item.alert?.below ?? ''}" data-slug="${slug}" data-dir="below"/>
                 </label>
-                <label class="wfm-wl-alert-label" data-tooltip="Send a notification when price rises above this value">
+                <label class="wfm-wl-alert-label" data-tooltip="Notify when the priciest live buy order rises to this or above — what you'd get selling now">
                   Above
                   <input class="wfm-wl-alert-input" type="number" min="1" placeholder="—"
                     value="${item.alert?.above ?? ''}" data-slug="${slug}" data-dir="above"/>
