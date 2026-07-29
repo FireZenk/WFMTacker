@@ -1,4 +1,11 @@
 # Changelog
+## [1.8.0] - 2026-07-29
+
+### Bug Fixes
+
+- Price alerts read the live order book, not the 90-day average
+- Skip hidden orders in the ducat-per-platinum alert
+
 ## [1.7.0] - 2026-06-30
 
 ### Bug Fixes
