@@ -36,15 +36,45 @@ function saveWatchlist(watchlist) {
 
 // ── Price check ───────────────────────────────────────────────────────────────
 
-// Returns 'below', 'above', or null. Only fires when price crosses the threshold
-// (was on the safe side last check, now on the alert side) — prevents repeat
-// notifications while price stays on the same side of the threshold.
-function shouldNotify(prevPrice, newPrice, alert) {
+// Live order-book edges the plat alerts run on. The cheapest sell order is what
+// you'd pay to buy right now; the priciest buy order is what you'd get selling
+// right now — the only two prices a trade actually executes at. The 90-day
+// average can't answer either question, which is why it never drove these.
+// Hidden orders and unreachable traders are skipped: a 5p ask from someone last
+// seen months ago is not an opportunity. rank !== null narrows to that mod rank.
+// Returns { minSell, maxBuy }; either side is null when no order qualifies.
+function orderBookPrices(orders, rank = null, statuses = ['online', 'ingame']) {
+  const allow = new Set(statuses);
+  let minSell = null, maxBuy = null;
+  for (const o of orders || []) {
+    if (o?.visible === false) continue;
+    if (!allow.has(o?.user?.status)) continue;
+    if (!o.platinum || o.platinum <= 0) continue;
+    if (rank !== null && o.rank != null && o.rank !== rank) continue;
+    if (o.type === 'sell' && (minSell === null || o.platinum < minSell)) minSell = o.platinum;
+    if (o.type === 'buy'  && (maxBuy  === null || o.platinum > maxBuy))  maxBuy  = o.platinum;
+  }
+  return { minSell, maxBuy };
+}
+
+// Returns 'below', 'above', or null. Each direction watches its own price series
+// — below the cheapest sell, above the priciest buy — so each carries its own
+// previous value. Only fires when that series crosses the threshold (was on the
+// safe side last check, now on the alert side), which prevents repeat
+// notifications while the price stays on the same side of the threshold.
+function shouldNotify(prev, next, alert) {
   if (!alert) return null;
-  if (alert.below && newPrice <= alert.below && (!prevPrice || prevPrice > alert.below)) {
+  const minSell  = next?.minSell ?? null;
+  const maxBuy   = next?.maxBuy  ?? null;
+  const prevSell = prev?.minSell ?? null;
+  const prevBuy  = prev?.maxBuy  ?? null;
+
+  if (alert.below && minSell !== null && minSell <= alert.below &&
+      (prevSell === null || prevSell > alert.below)) {
     return 'below';
   }
-  if (alert.above && newPrice >= alert.above && (!prevPrice || prevPrice < alert.above)) {
+  if (alert.above && maxBuy !== null && maxBuy >= alert.above &&
+      (prevBuy === null || prevBuy < alert.above)) {
     return 'above';
   }
   return null;
@@ -63,6 +93,7 @@ function bestDppOrder(orders, ducats, statuses = ['online', 'ingame']) {
   let best = null;
   for (const o of orders || []) {
     if (o?.type !== 'sell') continue;
+    if (o.visible === false) continue;
     const u = o.user || {};
     if (!allow.has(u.status)) continue;
     if (!o.platinum || o.platinum <= 0) continue;
@@ -155,13 +186,31 @@ async function checkPrices() {
     let next   = { ...item };
     let touched = false;
 
-    // ── Plat threshold alert (below / above) ──
-    const price = await fetchCurrentPrice(slug, item.rank ?? null);
+    const hasPlatAlert = item.alert?.below != null || item.alert?.above != null;
+    // One order fetch feeds both the plat and the ducat alert.
+    const [price, orders] = await Promise.all([
+      fetchCurrentPrice(slug, item.rank ?? null),
+      hasPlatAlert || item.alert?.dpp ? fetchOrders(slug) : Promise.resolve([]),
+    ]);
+
+    // lastPrice stays the rank-aware 90-day average: it backs the panel's price
+    // column and the chart baseline, not the alerts.
     if (price) {
-      const direction = shouldNotify(item.lastPrice, price, item.alert);
-      if (direction) notify(slug, item.name, price, direction, item.alert[direction]);
       next.lastPrice = price;
       next.lastChecked = Date.now();
+      touched = true;
+    }
+
+    // ── Plat threshold alert (below = cheapest sell / above = priciest buy) ──
+    if (hasPlatAlert) {
+      const book      = orderBookPrices(orders, item.rank ?? null);
+      const direction = shouldNotify({ minSell: item.minSell, maxBuy: item.maxBuy }, book, item.alert);
+      if (direction) {
+        const hit = direction === 'below' ? book.minSell : book.maxBuy;
+        notify(slug, item.name, hit, direction, item.alert[direction]);
+      }
+      next.minSell = book.minSell;
+      next.maxBuy  = book.maxBuy;
       touched = true;
     }
 
@@ -170,7 +219,7 @@ async function checkPrices() {
       let ducats = item.ducats;
       if (ducats == null) { ducats = await fetchDucats(slug); next.ducats = ducats; touched = true; }
       if (ducats > 0) {
-        const best = bestDppOrder(await fetchOrders(slug), ducats);
+        const best = bestDppOrder(orders, ducats);
         const res  = dppShouldNotify(best, item.alert.dpp, item.dppNotified || {}, Date.now());
         if (res.notify) notifyDpp(slug, item.name, best);
         next.dppNotified = res.seen;
@@ -190,8 +239,8 @@ function notify(slug, name, price, direction, threshold) {
     iconUrl: 'icon.png',
     title:   `WFM Price Alert — ${name}`,
     message: direction === 'below'
-      ? `Price dropped to ${price}p — below your alert of ${threshold}p`
-      : `Price rose to ${price}p — above your alert of ${threshold}p`,
+      ? `Cheapest seller at ${price}p — below your alert of ${threshold}p`
+      : `Top buyer at ${price}p — above your alert of ${threshold}p`,
   });
 }
 
@@ -204,7 +253,7 @@ function notifyDpp(slug, name, best) {
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { shouldNotify, getWatchlist, saveWatchlist, fetchCurrentPrice, bestDppOrder, dppShouldNotify };
+if (typeof module !== 'undefined') module.exports = { shouldNotify, orderBookPrices, getWatchlist, saveWatchlist, fetchCurrentPrice, bestDppOrder, dppShouldNotify };
 
 // ── Messages from content script ──────────────────────────────────────────────
 

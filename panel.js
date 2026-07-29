@@ -479,21 +479,27 @@ async function toggleWatch(slug, name, price, rank = null) {
 
 // ── Sidebar / Watchlist ───────────────────────────────────────────────────────
 
-function alertProximity(price, below, above) {
+// Measures each threshold against the same price the background alert fires on:
+// below against the cheapest live sell order, above against the priciest live
+// buy order. Falls back to lastPrice for items the background hasn't re-checked
+// since the switch off the 90-day average.
+function alertProximity(item, below, above) {
   const entries = [];
-  if (below != null && price > 0) {
-    const dist    = price - below;
-    const pct     = Math.round((dist / price) * 100);
-    const fill    = Math.min(100, Math.round((below / price) * 100));
+  const sell = item.minSell ?? item.lastPrice;
+  const buy  = item.maxBuy  ?? item.lastPrice;
+  if (below != null && sell > 0) {
+    const dist    = sell - below;
+    const pct     = Math.round((dist / sell) * 100);
+    const fill    = Math.min(100, Math.round((below / sell) * 100));
     const urgent  = pct <= 5 ? 'red' : pct <= 20 ? 'orange' : 'teal';
-    entries.push({ dir: 'below', threshold: below, dist, pct, fill, urgent });
+    entries.push({ dir: 'below', price: sell, threshold: below, dist, pct, fill, urgent });
   }
-  if (above != null && price > 0) {
-    const dist    = above - price;
+  if (above != null && buy > 0) {
+    const dist    = above - buy;
     const pct     = Math.round((dist / above) * 100);
-    const fill    = Math.min(100, Math.round((price / above) * 100));
+    const fill    = Math.min(100, Math.round((buy / above) * 100));
     const urgent  = pct <= 5 ? 'red' : pct <= 20 ? 'orange' : 'teal';
-    entries.push({ dir: 'above', threshold: above, dist, pct, fill, urgent });
+    entries.push({ dir: 'above', price: buy, threshold: above, dist, pct, fill, urgent });
   }
   return entries;
 }
@@ -574,18 +580,18 @@ async function renderSidebar() {
     }
 
     const sorted = proximityItems
-      .flatMap(s => alertProximity(list[s].lastPrice, list[s].alert?.below, list[s].alert?.above)
+      .flatMap(s => alertProximity(list[s], list[s].alert?.below, list[s].alert?.above)
         .map(e => ({ slug: s, item: list[s], ...e })))
       .sort((a, b) => a.pct - b.pct);
 
-    body.innerHTML = sorted.map(({ slug, item, dir, threshold, dist, pct, fill, urgent }) => `
+    body.innerHTML = sorted.map(({ slug, item, dir, price, threshold, dist, pct, fill, urgent }) => `
       <div class="wfm-panel-ac-row ${slug === currentSlug ? 'wfm-panel-wl-active' : ''}" data-slug="${slug}">
         <div class="wfm-panel-ac-title">
           <span class="wfm-panel-ac-name">${esc(item.name)}</span>
           <span class="wfm-panel-ac-dir ${urgent}">${dir === 'below' ? '↓' : '↑'} ${threshold}p</span>
         </div>
         <div class="wfm-panel-ac-meta">
-          <span>${item.lastPrice}p → ${threshold}p</span>
+          <span data-tooltip="${dir === 'below' ? 'Cheapest live sell order' : 'Priciest live buy order'}">${price}p → ${threshold}p</span>
           <span class="${urgent}">${dist >= 0 ? dist + 'p away' : 'TRIGGERED'} (${pct}%)</span>
         </div>
         <div class="wfm-panel-ac-bar-wrap">
@@ -695,12 +701,12 @@ async function renderSidebar() {
           ${diffStr}
         </div>
         <div class="wfm-panel-wl-alerts">
-          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-below" data-tooltip="Alert when price drops below this">
+          <label class="wfm-panel-wl-alert-label wfm-panel-wl-alert-below" data-tooltip="Alert when the cheapest live sell order drops to this or below — what you'd pay to buy now">
             Below
             <input class="wfm-panel-wl-alert-input" type="number" min="1" placeholder="—"
               value="${item.alert?.below ?? ''}" data-slug="${slug}" data-dir="below">
           </label>
-          <label class="wfm-panel-wl-alert-label" data-tooltip="Alert when price rises above this">
+          <label class="wfm-panel-wl-alert-label" data-tooltip="Alert when the priciest live buy order rises to this or above — what you'd get selling now">
             Above
             <input class="wfm-panel-wl-alert-input" type="number" min="1" placeholder="—"
               value="${item.alert?.above ?? ''}" data-slug="${slug}" data-dir="above">

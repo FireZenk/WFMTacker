@@ -21,7 +21,7 @@ A browser extension that embeds price history charts and trade insights directly
 - **Copy to clipboard** — one-click copy of average or median price
 - **Set vs Parts arbitrage** — shows whether buying parts separately is cheaper than the set (Prime sets only)
 - **Ducat comparison** — platinum-per-ducat ratio to help decide whether to sell for plat or trade for ducats (Prime items only)
-- **Watchlist & Price Alerts** — star any item, set below/above thresholds, receive desktop notifications when prices cross them
+- **Watchlist & Price Alerts** — star any item, set below/above thresholds, receive desktop notifications when prices cross them. Thresholds run on the live order book: *below* tracks the cheapest sell order (what you'd pay to buy now), *above* the priciest buy order (what you'd get selling now), both limited to online/ingame traders
 - **SPA-aware** — detects URL changes on warframe.market's Vue/Nuxt router without requiring a page reload
 
 ---
