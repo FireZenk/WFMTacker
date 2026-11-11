@@ -54,7 +54,7 @@ function debounce(fn, ms) {
 
 async function fetchStats(slug) {
   const url = `${API_BASE}/items/${slug}/statistics?include=item`;
-  const res = await fetch(url, {
+  const res = await MarketAPI.fetch(url, {
     headers: { 'Language': 'en', 'Platform': 'pc' }
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -65,7 +65,7 @@ async function fetchStats(slug) {
 
 async function fetchItemV2(slug) {
   try {
-    const res = await fetch(`https://api.warframe.market/v2/item/${slug}`, {
+    const res = await MarketAPI.fetch(`https://api.warframe.market/v2/item/${slug}`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
     if (!res.ok) return null;
@@ -77,10 +77,11 @@ async function fetchItemV2(slug) {
 // Live market orders (v2 — v1 /orders is unreliable). Returns the raw order
 // array; callers filter by type/status. Resolves to [] on failure so a single
 // bad item never breaks bundle matching across the watchlist.
-async function fetchOrders(slug) {
+async function fetchOrders(slug, signal) {
   try {
-    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, {
-      headers: { 'Language': 'en', 'Platform': 'pc' }
+    const res = await MarketAPI.fetch(`https://api.warframe.market/v2/orders/item/${slug}`, {
+      headers: { 'Language': 'en', 'Platform': 'pc' },
+      signal
     });
     if (!res.ok) return [];
     const json = await res.json();
@@ -90,48 +91,61 @@ async function fetchOrders(slug) {
 
 async function fetchPartPrice(slug) {
   try {
-    const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
+    const res = await MarketAPI.fetch(`${API_BASE}/items/${encodeURIComponent(slug)}/statistics`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
     if (!res.ok) return null;
     const json = await res.json();
     const days = json.payload.statistics_closed['90days'] ?? [];
     const last = days[days.length - 1];
-    return last ? Math.round(last.wa_price ?? last.avg_price ?? 0) : null;
+    const price = last?.wa_price ?? last?.avg_price;
+    return typeof price === 'number' && Number.isFinite(price) && Math.round(price) > 0
+      ? Math.round(price) : null;
   } catch { return null; }
 }
 
 async function fetchItemParts(slug) {
+  const incomplete = () => ({ parts: [], complete: false });
   try {
-    const res = await fetch(`https://api.warframe.market/v2/item/${slug}`, {
+    const res = await MarketAPI.fetch(`https://api.warframe.market/v2/item/${encodeURIComponent(slug)}`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
-    if (!res.ok) return [];
-    const json    = await res.json();
-    const setData = json.data;
-    const allPartIds = (setData?.setParts ?? []).filter(id => id !== setData.id);
-    if (!allPartIds.length) return [];
+    if (!res.ok) return incomplete();
+    const setData = (await res.json()).data;
+    if (!setData || typeof setData.id !== 'string' || !setData.id || !Array.isArray(setData.setParts)) {
+      return incomplete();
+    }
 
-    const idCount = {};
-    allPartIds.forEach(id => { idCount[id] = (idCount[id] ?? 0) + 1; });
-    const uniqueIds = Object.keys(idCount);
-
-    const parts = await Promise.all(uniqueIds.map(async id => {
+    // setParts contains IDs, not quantities. quantityInSet belongs to each
+    // member and is documented as optional: an absent value is unknown, not 1.
+    let complete = setData.setParts.every(id => typeof id === 'string' && id.length > 0);
+    const ids = [...new Set(setData.setParts.filter(id => typeof id === 'string' && id && id !== setData.id))];
+    const fetched = await Promise.all(ids.map(async id => {
       try {
-        const r = await fetch(`https://api.warframe.market/v2/itemId/${id}`, {
+        const r = await MarketAPI.fetch(`https://api.warframe.market/v2/itemId/${encodeURIComponent(id)}`, {
           headers: { 'Language': 'en', 'Platform': 'pc' }
         });
         if (!r.ok) return null;
-        const j = await r.json();
-        const data = j.data ?? null;
-        return data ? { ...data, qty: idCount[id] } : null;
+        const data = (await r.json()).data;
+        if (!data || data.id !== id) return null;
+        if (data.setRoot === true) return data;
+        if (typeof data.slug !== 'string' || !data.slug) return null;
+        const qty = Number.isSafeInteger(data.quantityInSet) && data.quantityInSet > 0
+          ? data.quantityInSet : null;
+        return { ...data, qty };
       } catch { return null; }
     }));
-
-    return parts.filter(p => p && !p.setRoot);
+    const parts = [];
+    for (const part of fetched) {
+      if (!part) { complete = false; continue; }
+      if (part.setRoot === true) continue;
+      if (part.qty === null) complete = false;
+      parts.push(part);
+    }
+    return { parts, complete };
   } catch (e) {
     console.warn('[WFM-PH] fetchItemParts error:', e.message);
-    return [];
+    return incomplete();
   }
 }
 
@@ -150,7 +164,7 @@ async function loadVaultData() {
   return _vaultCache;
 }
 
-const calcVaultStatus = VaultUtils.calcVaultStatus;
+const resolveVaultStatus = VaultUtils.createVaultResolver?.(MarketAPI.fetch) ?? (async () => null);
 
 // ── Forecast ──────────────────────────────────────────────────────────────────
 

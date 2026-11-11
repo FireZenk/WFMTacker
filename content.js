@@ -66,6 +66,15 @@
 
   let currentSlug = null;
   let vaultData   = null;
+  let navigationId = 0;
+  let widgetLifecycle = null;
+  const VAULT_REFRESH_MS = 5 * 60 * 1000;
+
+  function disposeWidget() {
+    widgetLifecycle?.dispose();
+    widgetLifecycle = null;
+    document.getElementById(WIDGET_ID)?.remove();
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,13 +108,13 @@
     return vaultData;
   }
 
-  const calcVaultStatus = VaultUtils.calcVaultStatus;
+  const resolveVaultStatus = VaultUtils.createVaultResolver?.(MarketAPI.fetch) ?? (async () => null);
 
   // ── API ──────────────────────────────────────────────────────────────────────
 
   async function fetchStats(slug) {
     const url = `${API_BASE}/items/${slug}/statistics?include=item`;
-    const res = await fetch(url, {
+    const res = await MarketAPI.fetch(url, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -117,45 +126,53 @@
   }
 
   async function fetchItemParts(slug) {
+    const incomplete = () => ({ parts: [], complete: false });
     try {
-      // 1. Obtener info del set con la v2
-      const res = await fetch(`https://api.warframe.market/v2/item/${slug}`, {
+      const res = await MarketAPI.fetch(`https://api.warframe.market/v2/item/${encodeURIComponent(slug)}`, {
         headers: { 'Language': 'en', 'Platform': 'pc' }
       });
-      if (!res.ok) return [];
-      const json    = await res.json();
-      const setData = json.data;
-      const allPartIds = (setData?.setParts ?? []).filter(id => id !== setData.id);
-      if (!allPartIds.length) return [];
+      if (!res.ok) return incomplete();
+      const setData = (await res.json()).data;
+      if (!setData || typeof setData.id !== 'string' || !setData.id || !Array.isArray(setData.setParts)) {
+        return incomplete();
+      }
 
-      // Count how many times each ID appears (e.g. 2× blade in a set)
-      const idCount = {};
-      allPartIds.forEach(id => { idCount[id] = (idCount[id] ?? 0) + 1; });
-      const uniqueIds = Object.keys(idCount);
-
-      // 2. Resolver cada ID único a { slug, name } en paralelo
-      const parts = await Promise.all(uniqueIds.map(async id => {
+      // setParts contains IDs, not quantities. quantityInSet belongs to each
+      // member and is documented as optional: an absent value is unknown, not 1.
+      let complete = setData.setParts.every(id => typeof id === 'string' && id.length > 0);
+      const ids = [...new Set(setData.setParts.filter(id => typeof id === 'string' && id && id !== setData.id))];
+      const fetched = await Promise.all(ids.map(async id => {
         try {
-          const r = await fetch(`https://api.warframe.market/v2/itemId/${id}`, {
+          const r = await MarketAPI.fetch(`https://api.warframe.market/v2/itemId/${encodeURIComponent(id)}`, {
             headers: { 'Language': 'en', 'Platform': 'pc' }
           });
           if (!r.ok) return null;
-          const j = await r.json();
-          const data = j.data ?? null;
-          return data ? { ...data, qty: idCount[id] } : null;
+          const data = (await r.json()).data;
+          if (!data || data.id !== id) return null;
+          if (data.setRoot === true) return data;
+          if (typeof data.slug !== 'string' || !data.slug) return null;
+          const qty = Number.isSafeInteger(data.quantityInSet) && data.quantityInSet > 0
+            ? data.quantityInSet : null;
+          return { ...data, qty };
         } catch { return null; }
       }));
-
-      return parts.filter(p => p && !p.setRoot);
+      const parts = [];
+      for (const part of fetched) {
+        if (!part) { complete = false; continue; }
+        if (part.setRoot === true) continue;
+        if (part.qty === null) complete = false;
+        parts.push(part);
+      }
+      return { parts, complete };
     } catch (e) {
       console.warn('[WFM-PH] fetchItemParts error:', e.message);
-      return [];
+      return incomplete();
     }
   }
 
   async function fetchItemV2(slug) {
     try {
-      const res = await fetch(`https://api.warframe.market/v2/item/${slug}`, {
+      const res = await MarketAPI.fetch(`https://api.warframe.market/v2/item/${slug}`, {
         headers: { 'Language': 'en', 'Platform': 'pc' }
       });
       if (!res.ok) return null;
@@ -167,14 +184,16 @@
 
   async function fetchPartPrice(slug) {
     try {
-      const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
+      const res = await MarketAPI.fetch(`${API_BASE}/items/${encodeURIComponent(slug)}/statistics`, {
         headers: { 'Language': 'en', 'Platform': 'pc' }
       });
       if (!res.ok) return null;
       const json = await res.json();
       const days = json.payload.statistics_closed['90days'] ?? [];
       const last = days[days.length - 1];
-      return last ? Math.round(last.wa_price ?? last.avg_price ?? 0) : null;
+      const price = last?.wa_price ?? last?.avg_price;
+      return typeof price === 'number' && Number.isFinite(price) && Math.round(price) > 0
+        ? Math.round(price) : null;
     } catch { return null; }
   }
 
@@ -432,7 +451,7 @@
   // ── Widget ───────────────────────────────────────────────────────────────────
 
 
-  function buildWidget(slug, statsData, v2Data = null, settings = DEFAULT_SETTINGS, savedRank = null) {
+  function buildWidget(slug, statsData, v2Data = null, settings = DEFAULT_SETTINGS, savedRank = null, vaultPromise = null, lifecycle = null) {
     const allDays90  = statsData.closed['90days']  || [];
     const allHours48 = statsData.closed['48hours'] || [];
     const rankSplit90  = splitByRank(allDays90);
@@ -462,7 +481,7 @@
     // Static values — don't change with rank toggle
     const isPrime     = v2Data?.tags?.includes('prime') ?? slug.includes('prime');
     const ducats      = v2Data?.ducats ?? 0;
-    const vaultStatus = calcVaultStatus(slug, vaultData);
+    let vaultStatus = null;
 
     function buildStatsRowInner(d90, d48, fd) {
       const active      = d90.length ? d90 : d48;
@@ -736,13 +755,53 @@
       });
     }
 
-    window.addEventListener('resize', () => {
+    const onResize = () => {
       const activeTab = widget.querySelector('.wfm-ph-tab.active');
       if (!activeTab) return;
       const pts = activeTab.dataset.range === '90days' ? curDays90 : curHours48;
       const fd  = activeTab.dataset.range === '90days' ? curForecast : null;
       renderChart(widget, pts, fd);
-    }, { passive: true });
+    };
+    window.addEventListener('resize', onResize, { passive: true });
+
+    // A later refresh wins over an earlier (possibly slow) membership lookup.
+    let vaultGeneration = 0;
+    let disposed = false;
+    const isCurrent = () => !disposed && getItemSlug() === slug &&
+      document.getElementById(WIDGET_ID) === widget;
+    function applyVault(promise) {
+      const generation = ++vaultGeneration;
+      const apply = result => {
+        if (generation !== vaultGeneration || !isCurrent()) return;
+        vaultStatus = result;
+        const zone = widget.querySelector('#wfm-ph-insights-zone');
+        if (zone) zone.innerHTML = buildInsightsInner(curDays90, curHours48);
+      };
+      promise.then(apply, () => apply(null));
+    }
+    if (vaultPromise) applyVault(vaultPromise);
+
+    if (lifecycle) {
+      let timer;
+      const refresh = () => {
+        if (!isCurrent() || document.visibilityState === 'hidden') return;
+        applyVault(resolveVaultStatus(slug, vaultData, v2Data));
+      };
+      const onVisibility = () => { if (document.visibilityState !== 'hidden') refresh(); };
+      lifecycle.start = () => {
+        if (!settings.showVault) return;
+        if (typeof setInterval === 'function') timer = setInterval(refresh, VAULT_REFRESH_MS);
+        window.addEventListener('focus', refresh);
+        document.addEventListener('visibilitychange', onVisibility);
+      };
+      lifecycle.dispose = () => {
+        disposed = true;
+        if (timer != null) clearInterval(timer);
+        window.removeEventListener?.('focus', refresh);
+        document.removeEventListener?.('visibilitychange', onVisibility);
+        window.removeEventListener?.('resize', onResize);
+      };
+    }
 
     return widget;
   }
@@ -822,18 +881,8 @@
   // ── Arbitrage ─────────────────────────────────────────────────────────────────
 
   async function loadArbitrage(slug, statsData, widget) {
-    const allItems = await fetchItemParts(slug);
-    const parts    = allItems.filter(p => !p.set_root);
-    if (!parts.length) return;
-
-    const setDays  = statsData.closed['90days'] ?? [];
-    const setLast  = setDays[setDays.length - 1];
-    const setPrice = setLast ? Math.round(setLast.wa_price ?? setLast.avg_price ?? 0) : 0;
-    if (!setPrice) return;
-
-    // Mostrar sección con skeleton mientras carga
     const section = document.createElement('div');
-    section.id    = 'wfm-ph-arbitrage';
+    section.id = 'wfm-ph-arbitrage';
     section.className = 'wfm-ph-arb-section';
     section.innerHTML = `
       <div class="wfm-ph-arb-header">
@@ -842,41 +891,49 @@
       </div>`;
     widget.appendChild(section);
 
-    // Fetch precios de partes en paralelo (v2 usa slug, i18n.en.name, ducats)
-    const results = await Promise.all(
-      parts.map(async p => ({
-        name:   p.i18n?.en?.name ?? p.slug,
-        slug:   p.slug,
-        qty:    p.qty ?? 1,
-        price:  await fetchPartPrice(p.slug),
-        ducats: p.ducats ?? 0,
-      }))
-    );
+    const { parts, complete: metadataComplete } = await fetchItemParts(slug);
+    if (getItemSlug() !== slug) return;
+    if (!parts.length && metadataComplete) { section.remove(); return; }
 
+    const setDays = statsData.closed?.['90days'] ?? [];
+    const setLast = setDays[setDays.length - 1];
+    const rawSetPrice = setLast?.wa_price ?? setLast?.avg_price;
+    const setPrice = typeof rawSetPrice === 'number' && Number.isFinite(rawSetPrice) && Math.round(rawSetPrice) > 0
+      ? Math.round(rawSetPrice) : null;
+
+    const results = await Promise.all(parts.map(async p => ({
+      name: p.i18n?.en?.name ?? p.slug,
+      slug: p.slug,
+      qty: p.qty,
+      price: await fetchPartPrice(p.slug),
+      ducats: Number.isFinite(p.ducats) && p.ducats >= 0 ? p.ducats : null,
+    })));
     if (getItemSlug() !== slug) return;
 
-    const validParts  = results.filter(p => p.price);
-    const partsTotal  = validParts.reduce((s, p) => s + p.price * p.qty, 0);
-    const ducatsTotal = results.reduce((s, p) => s + (p.ducats ?? 0) * p.qty, 0);
-    const diff        = partsTotal - setPrice;
-    const diffPct     = Math.round(Math.abs(diff / setPrice) * 100);
-    const buyParts    = diff < 0;
-    const neutral     = Math.abs(diffPct) < 5;
+    const pricesComplete = results.every(p => p.price !== null);
+    const comparisonComplete = metadataComplete && pricesComplete && setPrice !== null;
+    const partsTotal = comparisonComplete ? results.reduce((sum, p) => sum + p.price * p.qty, 0) : null;
+    const ducatsComplete = comparisonComplete && results.every(p => p.ducats !== null);
+    const ducatsTotal = ducatsComplete ? results.reduce((sum, p) => sum + p.ducats * p.qty, 0) : null;
 
-    let recommendation = '';
-    if (neutral) {
-      recommendation = `<span class="wfm-ph-arb-neutral">≈ Fair — no significant arbitrage</span>`;
-    } else if (buyParts) {
-      recommendation = `<span class="wfm-ph-arb-buy">Buy parts separately → save <b>${Math.abs(diff)}p</b> (${diffPct}%)</span>`;
-    } else {
-      recommendation = `<span class="wfm-ph-arb-sell">Buy set, sell parts → profit <b>+${diff}p</b> (${diffPct}%)</span>`;
+    let recommendation = '<span class="wfm-ph-arb-neutral">Incomplete data — comparison unavailable</span>';
+    if (comparisonComplete) {
+      const diff = partsTotal - setPrice;
+      const diffPct = Math.round(Math.abs(diff / setPrice) * 100);
+      if (diffPct < 5) {
+        recommendation = '<span class="wfm-ph-arb-neutral">≈ Fair — no significant difference (historical prices)</span>';
+      } else if (diff < 0) {
+        recommendation = `<span class="wfm-ph-arb-buy">Buy parts separately → estimated savings <b>${Math.abs(diff)}p</b> (${diffPct}%; historical prices)</span>`;
+      } else {
+        recommendation = `<span class="wfm-ph-arb-sell">Buy set, sell parts → estimated profit <b>+${diff}p</b> (${diffPct}%; historical prices)</span>`;
+      }
     }
 
     const rows = results.map(p => `
       <div class="wfm-ph-arb-row">
-        <a class="wfm-ph-arb-name" href="/items/${p.slug}">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</a>
-        <span class="wfm-ph-arb-ducats">${p.ducats ? `${DUCAT_SVG}${p.ducats}` : ''}</span>
-        <span class="wfm-ph-arb-price">${p.price ? `${p.price * p.qty}p` : '—'}</span>
+        <a class="wfm-ph-arb-name" href="/items/${esc(encodeURIComponent(p.slug))}">${esc(p.name)}${p.qty == null ? ` <span class="wfm-ph-arb-qty">×?</span>` : p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</a>
+        <span class="wfm-ph-arb-ducats">${p.ducats != null && p.qty != null && p.ducats > 0 ? `${DUCAT_SVG}${p.ducats * p.qty}` : ''}</span>
+        <span class="wfm-ph-arb-price">${p.price != null && p.qty != null ? `${p.price * p.qty}p` : '—'}</span>
       </div>`).join('');
 
     section.innerHTML = `
@@ -884,11 +941,12 @@
         <span class="wfm-ph-arb-title">ARBITRAGE · SET vs PARTS</span>
       </div>
       <div class="wfm-ph-arb-rows">${rows}</div>
+      <div class="wfm-ph-arb-rec">Estimates based on historical prices, not current offers.</div>
       <div class="wfm-ph-arb-summary">
         <div class="wfm-ph-arb-totals">
-          <span>Parts total <b class="wfm-ph-arb-num">${partsTotal}p</b></span>
+          <span>Parts total <b class="wfm-ph-arb-num">${partsTotal != null ? `${partsTotal}p` : '—'}</b></span>
           <span class="wfm-ph-arb-sep">vs</span>
-          <span>Set price <b class="wfm-ph-arb-num">${setPrice}p</b></span>
+          <span>Set price <b class="wfm-ph-arb-num">${setPrice != null ? `${setPrice}p` : '—'}</b></span>
           ${ducatsTotal > 0 ? `<span class="wfm-ph-arb-sep">·</span><span class="wfm-ph-arb-ducats-total">${DUCAT_SVG} ${ducatsTotal}d total</span>` : ''}
         </div>
         <div class="wfm-ph-arb-rec">${recommendation}</div>
@@ -1005,7 +1063,8 @@
   }
 
   async function injectWidget(slug) {
-    document.getElementById(WIDGET_ID)?.remove();
+    const requestId = navigationId;
+    disposeWidget();
 
     const [statsData, anchorEl, v2Data, , settings, watchlist] = await Promise.all([
       fetchStats(slug).catch(() => null),
@@ -1016,11 +1075,13 @@
       getWatchlist(),
     ]);
 
-    if (getItemSlug() !== slug) return;
+    if (getItemSlug() !== slug || requestId !== navigationId) return;
     if (!statsData || !anchorEl) return;
     if (document.getElementById(WIDGET_ID)) return;
 
-    const widget = buildWidget(slug, statsData, v2Data, settings, watchlist[slug]?.rank ?? null);
+    const vaultPromise = settings.showVault ? resolveVaultStatus(slug, vaultData, v2Data) : null;
+    const lifecycle = {};
+    const widget = buildWidget(slug, statsData, v2Data, settings, watchlist[slug]?.rank ?? null, vaultPromise, lifecycle);
     if (!widget) return;
 
     if (anchorEl.id === 'wfm-itempage-zone-lg') {
@@ -1030,6 +1091,9 @@
     } else {
       anchorEl.parentElement.insertBefore(widget, anchorEl);
     }
+
+    widgetLifecycle = { widget, dispose: lifecycle.dispose };
+    lifecycle.start();
 
     // Arbitrage: solo para páginas de set
     if (slug.endsWith('_set') && settings.showArbitrage) {
@@ -1043,13 +1107,15 @@
     const slug = getItemSlug();
 
     if (!slug) {
-      document.getElementById(WIDGET_ID)?.remove();
+      navigationId++;
+      disposeWidget();
       currentSlug = null;
       return;
     }
 
     if (slug === currentSlug) return;
     currentSlug = slug;
+    navigationId++;
     injectWidget(slug);
   }
 
@@ -1057,6 +1123,11 @@
   // popstate y cualquier mecanismo interno del router de Vue/Nuxt.
   let lastHref = location.href;
   setInterval(() => {
+    // The SPA can also detach the widget without changing its URL.
+    if (widgetLifecycle && document.getElementById(WIDGET_ID) !== widgetLifecycle.widget) {
+      widgetLifecycle.dispose();
+      widgetLifecycle = null;
+    }
     if (location.href !== lastHref) {
       lastHref = location.href;
       onNavigate();

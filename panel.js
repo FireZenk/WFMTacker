@@ -31,11 +31,15 @@ async function trackRecentlyViewed(slug, name) {
 
 let currentSlug    = null;
 let currentRange   = '90days';
+let navigationId   = 0;
 let navHistory     = [];
 let navIndex       = -1;
 let sidebarTab     = 'watchlist'; // 'watchlist' | 'alerts'
 let selectMode     = false;
 let selectedSlugs  = new Set();
+let disposeItemLifecycle = null;
+let bundleController = null;
+const VAULT_REFRESH_MS = 5 * 60 * 1000;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
@@ -122,6 +126,11 @@ function updateNavBtns() {
 // ── Load item ─────────────────────────────────────────────────────────────────
 
 async function loadItem(slug) {
+  bundleController?.abort();
+  bundleController = null;
+  disposeItemLifecycle?.();
+  disposeItemLifecycle = null;
+  const requestId = ++navigationId;
   currentSlug  = slug;
   currentRange = '90days'; // overridden by settings in renderItem
 
@@ -146,17 +155,19 @@ async function loadItem(slug) {
       getWatchlist(),
     ]);
 
-    if (currentSlug !== slug) return;
-    renderItem(slug, statsData, v2Data, vaultData, settings, watchlist[slug]?.rank ?? null);
+    if (currentSlug !== slug || requestId !== navigationId) return;
+    await renderItem(slug, statsData, v2Data, vaultData, settings, watchlist[slug]?.rank ?? null, requestId);
   } catch (e) {
-    if (currentSlug !== slug) return;
+    if (currentSlug !== slug || requestId !== navigationId) return;
+    disposeItemLifecycle?.();
+    disposeItemLifecycle = null;
     content.innerHTML = `<div class="wfm-panel-error">Failed to load data for this item.</div>`;
   }
 }
 
 // ── Render item ───────────────────────────────────────────────────────────────
 
-async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT_SETTINGS, savedRank = null) {
+async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT_SETTINGS, savedRank = null, requestId = navigationId) {
   currentRange = settings.defaultRange;
   const allDays90  = statsData.closed['90days']  || [];
   const allHours48 = statsData.closed['48hours'] || [];
@@ -185,13 +196,16 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
   const isPrime     = v2Data?.tags?.includes('prime') ?? slug.includes('prime');
   const ducats      = v2Data?.ducats ?? 0;
   const platPrice   = Math.round(last.wa_price ?? last.avg_price ?? 0);
-  const vaultStatus = calcVaultStatus(slug, vaultData);
+  let vaultStatus = null;
+  const vaultPromise = settings.showVault ? resolveVaultStatus(slug, vaultData, v2Data).catch(() => null) : null;
 
   const watchlist = await getWatchlist();
+  if (currentSlug !== slug || requestId !== navigationId) return;
   const isWatched = !!watchlist[slug];
   const itemName  = slugToName(slug);
 
   await trackRecentlyViewed(slug, itemName);
+  if (currentSlug !== slug || requestId !== navigationId) return;
   renderSidebar();
 
   function buildPanelStatsInner(d90, d48, fd) {
@@ -293,6 +307,47 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
     <div id="wfm-panel-notes-zone"></div>
   `;
 
+  // A slow or failed membership lookup never delays the chart. A later
+  // refresh supersedes any earlier request, including on navigation back.
+  let vaultGeneration = 0;
+  let disposed = false;
+  function applyVault(promise) {
+    const generation = ++vaultGeneration;
+    const apply = result => {
+      if (disposed || generation !== vaultGeneration || currentSlug !== slug || requestId !== navigationId) return;
+      vaultStatus = result;
+      const zone = document.getElementById('wfm-panel-insights-zone');
+      if (zone) zone.innerHTML = buildPanelInsights(curDays90, curHours48);
+    };
+    promise.then(apply, () => apply(null));
+  }
+  if (vaultPromise) applyVault(vaultPromise);
+  const refreshVault = () => {
+    if (disposed || currentSlug !== slug || requestId !== navigationId || document.visibilityState === 'hidden') return;
+    applyVault(resolveVaultStatus(slug, vaultData, v2Data));
+  };
+  const onVisibility = () => { if (document.visibilityState !== 'hidden') refreshVault(); };
+  let vaultTimer;
+  if (settings.showVault) {
+    if (typeof setInterval === 'function') vaultTimer = setInterval(refreshVault, VAULT_REFRESH_MS);
+    window.addEventListener('focus', refreshVault);
+    document.addEventListener('visibilitychange', onVisibility);
+  }
+
+  const onResize = () => {
+    const pts = currentRange === '90days' ? curDays90 : curHours48;
+    const fd  = currentRange === '90days' ? curForecast : null;
+    drawChart(pts, fd);
+  };
+  window.addEventListener('resize', onResize, { passive: true });
+  disposeItemLifecycle = () => {
+    disposed = true;
+    if (vaultTimer != null) clearInterval(vaultTimer);
+    window.removeEventListener?.('focus', refreshVault);
+    document.removeEventListener?.('visibilitychange', onVisibility);
+    window.removeEventListener?.('resize', onResize);
+  };
+
   const initPts = settings.defaultRange === '48hours' ? curHours48 : curDays90;
   drawChart(initPts.length ? initPts : (settings.defaultRange === '48hours' ? curDays90 : curHours48),
             settings.defaultRange === '48hours' ? null : curForecast);
@@ -376,11 +431,7 @@ async function renderItem(slug, statsData, v2Data, vaultData, settings = DEFAULT
 
   renderNotesZone(isWatched, watchlist[slug]?.note ?? '');
 
-  window.addEventListener('resize', () => {
-    const pts = currentRange === '90days' ? curDays90 : curHours48;
-    const fd  = currentRange === '90days' ? curForecast : null;
-    drawChart(pts, fd);
-  }, { passive: true });
+
 
   if (slug.endsWith('_set') && settings.showArbitrage) {
     loadArbitrage(slug, statsData);
@@ -772,84 +823,110 @@ async function renderSidebar() {
 // ── Bundle deals (multi-item seller matching) ─────────────────────────────────
 
 async function showBundleDeals() {
+  // Switch views before awaiting storage, so an older item or Bundle cannot
+  // render while the watchlist is still loading.
+  const requestId = ++navigationId;
+  bundleController?.abort();
+  const controller = new AbortController();
+  bundleController = controller;
+  disposeItemLifecycle?.();
+  disposeItemLifecycle = null;
+  currentSlug = null;
   const content = document.getElementById('wfm-panel-content');
-  const list    = await getWatchlist();
-  const slugs   = Object.keys(list);
-  if (slugs.length < 2) return;
+  const isCurrent = () => requestId === navigationId && !controller.signal.aborted;
+  document.querySelectorAll('.wfm-panel-wl-row').forEach(row => {
+    row.classList.toggle('wfm-panel-wl-active', false);
+  });
+  content.innerHTML = '<div class="wfm-panel-loading">Loading Bundle deals…</div>';
 
-  const head = sub => `
-    <div class="wfm-panel-bundle-head">
-      <h2 class="wfm-panel-bundle-title">⚖ Bundle deals</h2>
-      <span class="wfm-panel-bundle-sub">${sub}</span>
-    </div>`;
+  try {
+    const list = await getWatchlist();
+    if (!isCurrent()) return;
+    const slugs = Object.keys(list);
+    if (slugs.length < 2) {
+      content.innerHTML = '<div class="wfm-panel-bundle-empty">Add at least 2 items to the watchlist to find Bundle deals.</div>';
+      return;
+    }
 
-  content.innerHTML = `
-    <div class="wfm-panel-bundle">
-      ${head(`Scanning ${slugs.length} watchlist items for sellers with 2+…`)}
-      <div class="wfm-panel-bundle-loading">Loading live orders…</div>
-    </div>`;
+    const head = sub => `
+      <div class="wfm-panel-bundle-head">
+        <h2 class="wfm-panel-bundle-title">⚖ Bundle deals</h2>
+        <span class="wfm-panel-bundle-sub">${sub}</span>
+      </div>`;
 
-  const entries = await Promise.all(slugs.map(async slug => {
-    const orders = await fetchOrders(slug);
-    return [slug, { name: list[slug]?.name || slug, orders }];
-  }));
-  const groups = groupBundleDeals(Object.fromEntries(entries), { statuses: ['online', 'ingame'] });
-
-  if (!groups.length) {
     content.innerHTML = `
       <div class="wfm-panel-bundle">
-        ${head(`Online / in-game sellers holding 2+ of your ${slugs.length} watchlist items`)}
-        <div class="wfm-panel-bundle-empty">No seller currently has 2+ of your watchlist items online.<br>Try again later, or add more items to the watchlist.</div>
+        ${head(`Scanning ${slugs.length} watchlist items for sellers with 2+…`)}
+        <div class="wfm-panel-bundle-loading">Loading live orders…</div>
       </div>`;
-    return;
+
+    const entries = await Promise.all(slugs.map(async slug => {
+      const orders = await fetchOrders(slug, controller.signal);
+      return [slug, { name: list[slug]?.name || slug, orders }];
+    }));
+    if (!isCurrent()) return;
+    const groups = groupBundleDeals(Object.fromEntries(entries), { statuses: ['online', 'ingame'] });
+
+    if (!groups.length) {
+      content.innerHTML = `
+        <div class="wfm-panel-bundle">
+          ${head(`Online / in-game sellers holding 2+ of your ${slugs.length} watchlist items`)}
+          <div class="wfm-panel-bundle-empty">No seller currently has 2+ of your watchlist items online.<br>Try again later, or add more items to the watchlist.</div>
+        </div>`;
+      return;
+    }
+
+    const statusBadge = s =>
+      `<span class="wfm-panel-bundle-status ${s}">${s === 'ingame' ? 'In-game' : 'Online'}</span>`;
+
+    content.innerHTML = `
+      <div class="wfm-panel-bundle">
+        ${head(`${groups.length} seller${groups.length > 1 ? 's' : ''} holding 2+ of your ${slugs.length} watchlist items`)}
+        <div class="wfm-panel-bundle-list">
+          ${groups.map((g, gi) => `
+            <div class="wfm-panel-bundle-seller">
+              <div class="wfm-panel-bundle-seller-head">
+                <span class="wfm-panel-bundle-seller-name">${esc(g.ingameName)}</span>
+                ${statusBadge(g.status)}
+                <span class="wfm-panel-bundle-rep" title="Seller reputation">★ ${g.reputation}</span>
+                <span class="wfm-panel-bundle-count">${g.items.length} items · ${g.total}p</span>
+                <button class="wfm-panel-bundle-copy" data-gi="${gi}" data-tooltip="Copy a ready-to-paste trade-chat whisper for all ${g.items.length} items">⧉ Copy whisper</button>
+              </div>
+              <div class="wfm-panel-bundle-items">
+                ${[...g.items].sort((a, b) => a.platinum - b.platinum).map(i => `
+                  <div class="wfm-panel-bundle-item" data-slug="${i.slug}">
+                    <span class="wfm-panel-bundle-item-name">${esc(i.name)}</span>
+                    <span class="wfm-panel-bundle-item-price">${i.platinum}p</span>
+                  </div>`).join('')}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    content.querySelectorAll('.wfm-panel-bundle-item').forEach(el =>
+      el.addEventListener('click', () => {
+        const input = document.getElementById('wfm-panel-search');
+        if (input) input.value = list[el.dataset.slug]?.name ?? '';
+        navigateTo(el.dataset.slug);
+      })
+    );
+
+    // Copy a full, ready-to-paste warframe.market whisper (all items + total).
+    content.querySelectorAll('.wfm-panel-bundle-copy').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const whisper = buildBundleWhisper(groups[+btn.dataset.gi]);
+        navigator.clipboard?.writeText(whisper).then(() => {
+          btn.textContent = 'Copied ✓';
+          btn.classList.add('wfm-panel-bundle-copied');
+          setTimeout(() => { btn.textContent = '⧉ Copy whisper'; btn.classList.remove('wfm-panel-bundle-copied'); }, 1400);
+        }).catch(() => {});
+      })
+    );
+  } catch (error) {
+    if (isCurrent()) content.innerHTML = '<div class="wfm-panel-error">Failed to load Bundle deals.</div>';
+  } finally {
+    if (bundleController === controller) bundleController = null;
   }
-
-  const statusBadge = s =>
-    `<span class="wfm-panel-bundle-status ${s}">${s === 'ingame' ? 'In-game' : 'Online'}</span>`;
-
-  content.innerHTML = `
-    <div class="wfm-panel-bundle">
-      ${head(`${groups.length} seller${groups.length > 1 ? 's' : ''} holding 2+ of your ${slugs.length} watchlist items`)}
-      <div class="wfm-panel-bundle-list">
-        ${groups.map((g, gi) => `
-          <div class="wfm-panel-bundle-seller">
-            <div class="wfm-panel-bundle-seller-head">
-              <span class="wfm-panel-bundle-seller-name">${esc(g.ingameName)}</span>
-              ${statusBadge(g.status)}
-              <span class="wfm-panel-bundle-rep" title="Seller reputation">★ ${g.reputation}</span>
-              <span class="wfm-panel-bundle-count">${g.items.length} items · ${g.total}p</span>
-              <button class="wfm-panel-bundle-copy" data-gi="${gi}" data-tooltip="Copy a ready-to-paste trade-chat whisper for all ${g.items.length} items">⧉ Copy whisper</button>
-            </div>
-            <div class="wfm-panel-bundle-items">
-              ${[...g.items].sort((a, b) => a.platinum - b.platinum).map(i => `
-                <div class="wfm-panel-bundle-item" data-slug="${i.slug}">
-                  <span class="wfm-panel-bundle-item-name">${esc(i.name)}</span>
-                  <span class="wfm-panel-bundle-item-price">${i.platinum}p</span>
-                </div>`).join('')}
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-
-  content.querySelectorAll('.wfm-panel-bundle-item').forEach(el =>
-    el.addEventListener('click', () => {
-      const input = document.getElementById('wfm-panel-search');
-      if (input) input.value = list[el.dataset.slug]?.name ?? '';
-      navigateTo(el.dataset.slug);
-    })
-  );
-
-  // Copy a full, ready-to-paste warframe.market whisper (all items + total).
-  content.querySelectorAll('.wfm-panel-bundle-copy').forEach(btn =>
-    btn.addEventListener('click', () => {
-      const whisper = buildBundleWhisper(groups[+btn.dataset.gi]);
-      navigator.clipboard?.writeText(whisper).then(() => {
-        btn.textContent = 'Copied ✓';
-        btn.classList.add('wfm-panel-bundle-copied');
-        setTimeout(() => { btn.textContent = '⧉ Copy whisper'; btn.classList.remove('wfm-panel-bundle-copied'); }, 1400);
-      }).catch(() => {});
-    })
-  );
 }
 
 // ── Arbitrage ─────────────────────────────────────────────────────────────────
@@ -857,7 +934,6 @@ async function showBundleDeals() {
 async function loadArbitrage(slug, statsData) {
   const zone = document.getElementById('wfm-panel-arb-zone');
   if (!zone) return;
-
   zone.innerHTML = `
     <div class="wfm-ph-arb-section" style="margin:0 24px 16px">
       <div class="wfm-ph-arb-header">
@@ -866,49 +942,49 @@ async function loadArbitrage(slug, statsData) {
       </div>
     </div>`;
 
-  const allParts = await fetchItemParts(slug);
-  const parts    = allParts.filter(p => !p.set_root);
-  if (!parts.length) { zone.innerHTML = ''; return; }
+  const { parts, complete: metadataComplete } = await fetchItemParts(slug);
+  if (currentSlug !== slug) return;
+  if (!parts.length && metadataComplete) { zone.innerHTML = ''; return; }
 
-  const setDays  = statsData.closed['90days'] ?? [];
-  const setLast  = setDays[setDays.length - 1];
-  const setPrice = setLast ? Math.round(setLast.wa_price ?? setLast.avg_price ?? 0) : 0;
-  if (!setPrice) { zone.innerHTML = ''; return; }
+  const setDays = statsData.closed?.['90days'] ?? [];
+  const setLast = setDays[setDays.length - 1];
+  const rawSetPrice = setLast?.wa_price ?? setLast?.avg_price;
+  const setPrice = typeof rawSetPrice === 'number' && Number.isFinite(rawSetPrice) && Math.round(rawSetPrice) > 0
+    ? Math.round(rawSetPrice) : null;
 
+  const results = await Promise.all(parts.map(async p => ({
+    name: p.i18n?.en?.name ?? p.slug,
+    slug: p.slug,
+    qty: p.qty,
+    price: await fetchPartPrice(p.slug),
+    ducats: Number.isFinite(p.ducats) && p.ducats >= 0 ? p.ducats : null,
+  })));
   if (currentSlug !== slug) return;
 
-  const results = await Promise.all(
-    parts.map(async p => ({
-      name:   p.i18n?.en?.name ?? p.slug,
-      slug:   p.slug,
-      qty:    p.qty ?? 1,
-      price:  await fetchPartPrice(p.slug),
-      ducats: p.ducats ?? 0,
-    }))
-  );
+  const pricesComplete = results.every(p => p.price !== null);
+  const comparisonComplete = metadataComplete && pricesComplete && setPrice !== null;
+  const partsTotal = comparisonComplete ? results.reduce((sum, p) => sum + p.price * p.qty, 0) : null;
+  const ducatsComplete = comparisonComplete && results.every(p => p.ducats !== null);
+  const ducatsTotal = ducatsComplete ? results.reduce((sum, p) => sum + p.ducats * p.qty, 0) : null;
 
-  if (currentSlug !== slug) return;
-
-  const validParts  = results.filter(p => p.price);
-  const partsTotal  = validParts.reduce((s, p) => s + p.price * p.qty, 0);
-  const ducatsTotal = results.reduce((s, p) => s + (p.ducats ?? 0) * p.qty, 0);
-  const diff        = partsTotal - setPrice;
-  const diffPct     = Math.round(Math.abs(diff / setPrice) * 100);
-
-  let recommendation = '';
-  if (Math.abs(diffPct) < 5) {
-    recommendation = `<span class="wfm-ph-arb-neutral">≈ Fair — no significant arbitrage</span>`;
-  } else if (diff < 0) {
-    recommendation = `<span class="wfm-ph-arb-buy">Buy parts separately → save <b>${Math.abs(diff)}p</b> (${diffPct}%)</span>`;
-  } else {
-    recommendation = `<span class="wfm-ph-arb-sell">Buy set, sell parts → profit <b>+${diff}p</b> (${diffPct}%)</span>`;
+  let recommendation = '<span class="wfm-ph-arb-neutral">Incomplete data — comparison unavailable</span>';
+  if (comparisonComplete) {
+    const diff = partsTotal - setPrice;
+    const diffPct = Math.round(Math.abs(diff / setPrice) * 100);
+    if (diffPct < 5) {
+      recommendation = '<span class="wfm-ph-arb-neutral">≈ Fair — no significant difference (historical prices)</span>';
+    } else if (diff < 0) {
+      recommendation = `<span class="wfm-ph-arb-buy">Buy parts separately → estimated savings <b>${Math.abs(diff)}p</b> (${diffPct}%; historical prices)</span>`;
+    } else {
+      recommendation = `<span class="wfm-ph-arb-sell">Buy set, sell parts → estimated profit <b>+${diff}p</b> (${diffPct}%; historical prices)</span>`;
+    }
   }
 
   const rows = results.map(p => `
     <div class="wfm-ph-arb-row">
-      <button class="wfm-ph-arb-name wfm-ph-arb-name-btn" data-slug="${p.slug}">${esc(p.name)}${p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</button>
-      <span class="wfm-ph-arb-ducats">${p.ducats ? `${DUCAT_SVG}${p.ducats}` : ''}</span>
-      <span class="wfm-ph-arb-price">${p.price ? `${p.price * p.qty}p` : '—'}</span>
+      <button class="wfm-ph-arb-name wfm-ph-arb-name-btn" data-slug="${esc(p.slug)}">${esc(p.name)}${p.qty == null ? ` <span class="wfm-ph-arb-qty">×?</span>` : p.qty > 1 ? ` <span class="wfm-ph-arb-qty">×${p.qty}</span>` : ''}</button>
+      <span class="wfm-ph-arb-ducats">${p.ducats != null && p.qty != null && p.ducats > 0 ? `${DUCAT_SVG}${p.ducats * p.qty}` : ''}</span>
+      <span class="wfm-ph-arb-price">${p.price != null && p.qty != null ? `${p.price * p.qty}p` : '—'}</span>
     </div>`).join('');
 
   zone.innerHTML = `
@@ -917,17 +993,17 @@ async function loadArbitrage(slug, statsData) {
         <span class="wfm-ph-arb-title">ARBITRAGE · SET vs PARTS</span>
       </div>
       <div class="wfm-ph-arb-rows">${rows}</div>
+      <div class="wfm-ph-arb-rec">Estimates based on historical prices, not current offers.</div>
       <div class="wfm-ph-arb-summary">
         <div class="wfm-ph-arb-totals">
-          <span>Parts total <b class="wfm-ph-arb-num">${partsTotal}p</b></span>
+          <span>Parts total <b class="wfm-ph-arb-num">${partsTotal != null ? `${partsTotal}p` : '—'}</b></span>
           <span class="wfm-ph-arb-sep">vs</span>
-          <span>Set price <b class="wfm-ph-arb-num">${setPrice}p</b></span>
+          <span>Set price <b class="wfm-ph-arb-num">${setPrice != null ? `${setPrice}p` : '—'}</b></span>
           ${ducatsTotal > 0 ? `<span class="wfm-ph-arb-sep">·</span><span class="wfm-ph-arb-ducats-total">${DUCAT_SVG} ${ducatsTotal}d total</span>` : ''}
         </div>
         <div class="wfm-ph-arb-rec">${recommendation}</div>
       </div>
     </div>`;
-
   zone.querySelectorAll('.wfm-ph-arb-name-btn').forEach(btn => {
     btn.addEventListener('click', () => navigateTo(btn.dataset.slug));
   });
