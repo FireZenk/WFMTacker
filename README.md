@@ -75,6 +75,14 @@ wfm-price-history/
 
 ---
 
+## Prime data maintenance
+
+Prime sets, parts and quantities are fetched from warframe.market; they are not a hardcoded catalogue. Set-versus-parts comparisons use historical prices, not live offers, and are suppressed when required data is incomplete.
+
+`vault-data.json` is a separately maintained snapshot of known Vault and Resurgence history. It is not exhaustive and does not determine whether an item is tradeable. Check [the sources and maintenance notes](docs/prime-data-sources.md) before updating it. After checking the sources, update `_asOf` and add verified events; an open-ended event also needs `verifiedAt`. An unrefreshed open event stops being shown as active after 48 hours following the verified UTC day, and the entire snapshot is marked outdated after 30 days. Run `npm test -- --runInBand` to validate changes.
+
+---
+
 ## Permissions
 
 | Permission | Reason |

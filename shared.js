@@ -54,7 +54,7 @@ function debounce(fn, ms) {
 
 async function fetchStats(slug) {
   const url = `${API_BASE}/items/${slug}/statistics?include=item`;
-  const res = await fetch(url, {
+  const res = await MarketAPI.fetch(url, {
     headers: { 'Language': 'en', 'Platform': 'pc' }
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -65,7 +65,7 @@ async function fetchStats(slug) {
 
 async function fetchItemV2(slug) {
   try {
-    const res = await fetch(`https://api.warframe.market/v2/item/${slug}`, {
+    const res = await MarketAPI.fetch(`https://api.warframe.market/v2/item/${slug}`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
     if (!res.ok) return null;
@@ -77,10 +77,11 @@ async function fetchItemV2(slug) {
 // Live market orders (v2 — v1 /orders is unreliable). Returns the raw order
 // array; callers filter by type/status. Resolves to [] on failure so a single
 // bad item never breaks bundle matching across the watchlist.
-async function fetchOrders(slug) {
+async function fetchOrders(slug, signal) {
   try {
-    const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, {
-      headers: { 'Language': 'en', 'Platform': 'pc' }
+    const res = await MarketAPI.fetch(`https://api.warframe.market/v2/orders/item/${slug}`, {
+      headers: { 'Language': 'en', 'Platform': 'pc' },
+      signal
     });
     if (!res.ok) return [];
     const json = await res.json();
@@ -90,48 +91,61 @@ async function fetchOrders(slug) {
 
 async function fetchPartPrice(slug) {
   try {
-    const res = await fetch(`${API_BASE}/items/${slug}/statistics`, {
+    const res = await MarketAPI.fetch(`${API_BASE}/items/${encodeURIComponent(slug)}/statistics`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
     if (!res.ok) return null;
     const json = await res.json();
     const days = json.payload.statistics_closed['90days'] ?? [];
     const last = days[days.length - 1];
-    return last ? Math.round(last.wa_price ?? last.avg_price ?? 0) : null;
+    const price = last?.wa_price ?? last?.avg_price;
+    return typeof price === 'number' && Number.isFinite(price) && Math.round(price) > 0
+      ? Math.round(price) : null;
   } catch { return null; }
 }
 
 async function fetchItemParts(slug) {
+  const incomplete = () => ({ parts: [], complete: false });
   try {
-    const res = await fetch(`https://api.warframe.market/v2/item/${slug}`, {
+    const res = await MarketAPI.fetch(`https://api.warframe.market/v2/item/${encodeURIComponent(slug)}`, {
       headers: { 'Language': 'en', 'Platform': 'pc' }
     });
-    if (!res.ok) return [];
-    const json    = await res.json();
-    const setData = json.data;
-    const allPartIds = (setData?.setParts ?? []).filter(id => id !== setData.id);
-    if (!allPartIds.length) return [];
+    if (!res.ok) return incomplete();
+    const setData = (await res.json()).data;
+    if (!setData || typeof setData.id !== 'string' || !setData.id || !Array.isArray(setData.setParts)) {
+      return incomplete();
+    }
 
-    const idCount = {};
-    allPartIds.forEach(id => { idCount[id] = (idCount[id] ?? 0) + 1; });
-    const uniqueIds = Object.keys(idCount);
-
-    const parts = await Promise.all(uniqueIds.map(async id => {
+    // setParts contains IDs, not quantities. quantityInSet belongs to each
+    // member and is documented as optional: an absent value is unknown, not 1.
+    let complete = setData.setParts.every(id => typeof id === 'string' && id.length > 0);
+    const ids = [...new Set(setData.setParts.filter(id => typeof id === 'string' && id && id !== setData.id))];
+    const fetched = await Promise.all(ids.map(async id => {
       try {
-        const r = await fetch(`https://api.warframe.market/v2/itemId/${id}`, {
+        const r = await MarketAPI.fetch(`https://api.warframe.market/v2/itemId/${encodeURIComponent(id)}`, {
           headers: { 'Language': 'en', 'Platform': 'pc' }
         });
         if (!r.ok) return null;
-        const j = await r.json();
-        const data = j.data ?? null;
-        return data ? { ...data, qty: idCount[id] } : null;
+        const data = (await r.json()).data;
+        if (!data || data.id !== id) return null;
+        if (data.setRoot === true) return data;
+        if (typeof data.slug !== 'string' || !data.slug) return null;
+        const qty = Number.isSafeInteger(data.quantityInSet) && data.quantityInSet > 0
+          ? data.quantityInSet : null;
+        return { ...data, qty };
       } catch { return null; }
     }));
-
-    return parts.filter(p => p && !p.setRoot);
+    const parts = [];
+    for (const part of fetched) {
+      if (!part) { complete = false; continue; }
+      if (part.setRoot === true) continue;
+      if (part.qty === null) complete = false;
+      parts.push(part);
+    }
+    return { parts, complete };
   } catch (e) {
     console.warn('[WFM-PH] fetchItemParts error:', e.message);
-    return [];
+    return incomplete();
   }
 }
 
@@ -150,69 +164,7 @@ async function loadVaultData() {
   return _vaultCache;
 }
 
-function calcVaultStatus(slug, data) {
-  if (!slug.includes('prime') || !data) return null;
-
-  const PART_SUFFIXES = [
-    '_neuroptics', '_systems', '_chassis', '_blueprint',
-    '_barrel', '_receiver', '_stock', '_blade', '_handle',
-    '_guard', '_grip', '_string', '_lower_limb', '_upper_limb',
-    '_boot', '_carapace', '_cerebrum', '_link_neuroptics',
-    '_link_systems', '_link_chassis', '_ornament',
-  ];
-  let setSlug = slug.endsWith('_set') ? slug : null;
-  if (!setSlug) {
-    for (const suf of PART_SUFFIXES) {
-      if (slug.endsWith(suf)) { setSlug = slug.slice(0, -suf.length) + '_set'; break; }
-    }
-    if (!setSlug) setSlug = slug + '_set';
-  }
-
-  const entry = data[setSlug];
-  if (!entry) return null;
-
-  const now    = Date.now();
-  const events = entry.events || [];
-  const last   = events[events.length - 1];
-
-  if (last) {
-    const start = new Date(last.start).getTime();
-    const end   = new Date(last.end).getTime();
-    if (now >= start && now <= end) {
-      return {
-        cls: 'wfm-ph-ins-buy',
-        icon: '🔓',
-        label: 'Prime Resurgence active',
-        sub: '— available now via Varzia',
-        tooltip: 'This prime is currently available through Prime Resurgence. Grab relics before the rotation ends!',
-      };
-    }
-  }
-
-  const refDate   = last ? new Date(last.end) : new Date(entry.vaulted);
-  const monthsAgo = Math.round((now - refDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
-  const timeLabel = monthsAgo < 1  ? 'this month'
-    : monthsAgo === 1              ? '1 month ago'
-    : monthsAgo < 12              ? `${monthsAgo} months ago`
-    : monthsAgo < 24              ? '~1 year ago'
-    : `~${Math.round(monthsAgo / 12)} years ago`;
-
-  const isOld    = monthsAgo >= 6;
-  const hasEvent = !!last;
-  const endFmt   = hasEvent
-    ? new Date(last.end).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    : null;
-
-  return {
-    cls:     isOld ? 'wfm-ph-ins-sell' : 'wfm-ph-ins-neutral',
-    icon:    '🔒',
-    label:   hasEvent ? `Last seen ${timeLabel}` : `Vaulted ${timeLabel}`,
-    sub:     isOld ? '— selling sooner may be worth considering' : '— vaulted recently',
-    tooltip: hasEvent
-      ? `Last available in Prime Resurgence: ${endFmt}. Items absent 6+ months tend to stay vaulted for a while.`
-      : `Entered the Prime Vault and has not appeared in Prime Resurgence yet.`,
-  };
-}
+const resolveVaultStatus = VaultUtils.createVaultResolver?.(MarketAPI.fetch) ?? (async () => null);
 
 // ── Forecast ──────────────────────────────────────────────────────────────────
 
