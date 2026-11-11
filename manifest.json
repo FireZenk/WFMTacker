@@ -18,6 +18,7 @@
       "js": [
         "browser-polyfill.min.js",
         "rank-utils.js",
+        "vault-utils.js",
         "content.js"
       ],
       "css": [

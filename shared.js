@@ -150,69 +150,7 @@ async function loadVaultData() {
   return _vaultCache;
 }
 
-function calcVaultStatus(slug, data) {
-  if (!slug.includes('prime') || !data) return null;
-
-  const PART_SUFFIXES = [
-    '_neuroptics', '_systems', '_chassis', '_blueprint',
-    '_barrel', '_receiver', '_stock', '_blade', '_handle',
-    '_guard', '_grip', '_string', '_lower_limb', '_upper_limb',
-    '_boot', '_carapace', '_cerebrum', '_link_neuroptics',
-    '_link_systems', '_link_chassis', '_ornament',
-  ];
-  let setSlug = slug.endsWith('_set') ? slug : null;
-  if (!setSlug) {
-    for (const suf of PART_SUFFIXES) {
-      if (slug.endsWith(suf)) { setSlug = slug.slice(0, -suf.length) + '_set'; break; }
-    }
-    if (!setSlug) setSlug = slug + '_set';
-  }
-
-  const entry = data[setSlug];
-  if (!entry) return null;
-
-  const now    = Date.now();
-  const events = entry.events || [];
-  const last   = events[events.length - 1];
-
-  if (last) {
-    const start = new Date(last.start).getTime();
-    const end   = new Date(last.end).getTime();
-    if (now >= start && now <= end) {
-      return {
-        cls: 'wfm-ph-ins-buy',
-        icon: '🔓',
-        label: 'Prime Resurgence active',
-        sub: '— available now via Varzia',
-        tooltip: 'This prime is currently available through Prime Resurgence. Grab relics before the rotation ends!',
-      };
-    }
-  }
-
-  const refDate   = last ? new Date(last.end) : new Date(entry.vaulted);
-  const monthsAgo = Math.round((now - refDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
-  const timeLabel = monthsAgo < 1  ? 'this month'
-    : monthsAgo === 1              ? '1 month ago'
-    : monthsAgo < 12              ? `${monthsAgo} months ago`
-    : monthsAgo < 24              ? '~1 year ago'
-    : `~${Math.round(monthsAgo / 12)} years ago`;
-
-  const isOld    = monthsAgo >= 6;
-  const hasEvent = !!last;
-  const endFmt   = hasEvent
-    ? new Date(last.end).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    : null;
-
-  return {
-    cls:     isOld ? 'wfm-ph-ins-sell' : 'wfm-ph-ins-neutral',
-    icon:    '🔒',
-    label:   hasEvent ? `Last seen ${timeLabel}` : `Vaulted ${timeLabel}`,
-    sub:     isOld ? '— selling sooner may be worth considering' : '— vaulted recently',
-    tooltip: hasEvent
-      ? `Last available in Prime Resurgence: ${endFmt}. Items absent 6+ months tend to stay vaulted for a while.`
-      : `Entered the Prime Vault and has not appeared in Prime Resurgence yet.`,
-  };
-}
+const calcVaultStatus = VaultUtils.calcVaultStatus;
 
 // ── Forecast ──────────────────────────────────────────────────────────────────
 
