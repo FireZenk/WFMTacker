@@ -1,4 +1,13 @@
 # Changelog
+## [1.8.1] - 2026-11-11
+
+### Improvements
+
+- Update Prime Vault and Resurgence data and document sources and known gaps
+- Verify Prime part membership and handle stale or incomplete availability data
+- Correct set-part quantities and label arbitrage comparisons as historical estimates
+- Pace market API requests and handle rate limits and navigation cancellation
+
 ## [1.8.0] - 2026-07-29
 
 ### Bug Fixes
